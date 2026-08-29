@@ -1,0 +1,17 @@
+{
+  "name": "4ª Areia Vôlei",
+  "short_name": "4ª Areia",
+  "description": "App do time 4ª Areia Vôlei: atletas, sorteio de times, presença, caixa e ranking.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#00102E",
+  "theme_color": "#002F7F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
