@@ -195,6 +195,44 @@
   .mini-moons svg{width:13px;height:13px;margin-right:1px}
   .ath-actions{display:flex;gap:4px}
   .icon-btn{background:none;border:0;font-size:16px;color:var(--ink-soft);cursor:pointer;padding:6px}
+  .check-circle{
+    width:25px;height:25px;border-radius:50%;flex-shrink:0;
+    border:2px solid var(--sand-dark);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;background:var(--sand);font-size:13px;font-weight:800;color:transparent;
+  }
+  .check-circle.on{background:var(--gold);border-color:var(--gold);color:var(--navy-950)}
+  .select-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .select-all-btn{
+    flex:1;border:1.5px solid var(--navy-900);background:var(--sand);color:var(--navy-900);
+    font-weight:700;font-size:13px;padding:10px 14px;border-radius:12px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .select-all-btn.all-on{background:var(--navy-900);color:#fff}
+  .bulk-delete{
+    display:block;text-align:center;color:var(--danger);font-size:12.5px;font-weight:700;
+    text-decoration:underline;background:none;border:0;cursor:pointer;margin:2px auto 12px;width:100%;
+  }
+  .kebab-wrap{position:relative}
+  .kebab-menu{
+    position:absolute;right:0;top:28px;background:#fff;border-radius:10px;box-shadow:var(--shadow-card);
+    z-index:20;overflow:hidden;display:none;min-width:120px;
+  }
+  .kebab-menu.open{display:block}
+  .kebab-menu button{
+    display:block;width:100%;text-align:left;background:none;border:0;padding:11px 14px;
+    font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;font-family:'Poppins',sans-serif;
+  }
+  .kebab-menu button:hover{background:var(--sand)}
+  .kebab-menu button.danger{color:var(--danger)}
+  .ath-card.selected{background:#FFF8E6;border:1.5px solid var(--gold)}
+  .selected-bar{
+    position:fixed;left:14px;right:14px;bottom:calc(86px + var(--safe-bottom));
+    background:var(--navy-950);color:#fff;border-radius:16px;padding:12px 16px;
+    display:none;align-items:center;justify-content:space-between;z-index:45;
+    box-shadow:0 10px 24px -8px rgba(0,0,0,.5);gap:10px;
+  }
+  .selected-bar.show{display:flex}
+  .selected-bar span{font-size:12.5px;font-weight:600}
   .empty{text-align:center;color:var(--ink-soft);padding:34px 10px;font-size:13.5px}
   .empty span{font-size:34px;display:block;margin-bottom:8px}
   /* ---------- SORTEIO ---------- */
@@ -210,6 +248,12 @@
   .team-card ul{list-style:none;margin:0;padding:0}
   .team-card li{padding:5px 0;font-size:13.5px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between}
   .team-card li:last-child{border-bottom:0}
+  .banco-card{
+    background:var(--sand-dark);border-radius:var(--radius-md);padding:14px 16px;
+    margin-top:14px;color:var(--ink);font-size:13.5px;
+  }
+  .banco-card b{color:var(--navy-900)}
+  .banco-card .banco-names{margin-top:6px;font-weight:700;color:var(--navy-900)}
   /* ---------- PRESENÇA ---------- */
   .att-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--sand-dark)}
   .att-row:last-child{border-bottom:0}
@@ -254,6 +298,7 @@
   #installBanner button{white-space:nowrap}
   /* ---------- DESKTOP / TABLET ---------- */
   @media(min-width:900px){
+    .selected-bar{left:246px}
     body{padding-bottom:0;padding-left:230px}
     header{padding:26px 32px 54px}
     main{padding:0 32px}
@@ -304,22 +349,34 @@
   <!-- TAB: ATLETAS -->
   <section class="tab active" id="tab-atletas">
     <div class="section-title"><h2>👥 Elenco</h2><span class="pill-count" id="countAtletas">0</span></div>
+    <div class="select-bar">
+      <button class="select-all-btn" id="btnSelectAll" onclick="toggleSelectAll()">☐ Selecionar todos</button>
+    </div>
+    <button class="bulk-delete" id="btnBulkDelete" style="display:none" onclick="excluirSelecionados()">Excluir atletas selecionados</button>
     <div class="grid-athletes" id="listaAtletas"></div>
   </section>
 
   <!-- TAB: SORTEIO -->
   <section class="tab" id="tab-sorteio">
     <div class="section-title"><h2>🎲 Sorteio equilibrado</h2></div>
+
     <div class="card">
+      <label class="field-label">Jogadores por time</label>
+      <div class="stepper">
+        <button onclick="changePorTime(-1)">−</button>
+        <div class="val" id="porTimeVal">4</div>
+        <button onclick="changePorTime(1)">+</button>
+      </div>
       <label class="field-label">Número de times</label>
       <div class="stepper">
-        <button onclick="changeTeams(-1)">−</button>
+        <button onclick="changeNumTimes(-1)">−</button>
         <div class="val" id="numTimesVal">2</div>
-        <button onclick="changeTeams(1)">+</button>
+        <button onclick="changeNumTimes(1)">+</button>
       </div>
-      <button class="btn btn-gold btn-block" onclick="sortear()">🎲 Sortear times equilibrados</button>
+      <button class="btn btn-gold btn-block" style="margin-top:12px" onclick="sortear()">🎲 Sortear times equilibrados</button>
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="btnShareTeams" onclick="compartilharTimes()">📤 Compartilhar no WhatsApp</button>
     </div>
+    <div id="bancoResultado"></div>
     <div class="teams-wrap" id="timesResultado"></div>
   </section>
 
@@ -329,7 +386,10 @@
     <div class="card">
       <label class="field-label">Data do treino / jogo</label>
       <input type="date" id="dataPresenca" onchange="renderPresenca()">
-      <div id="listaPresenca" style="margin-top:6px"></div>
+      <div class="select-bar" style="margin-top:10px">
+        <button class="select-all-btn" id="btnSelectAllPresenca" onclick="toggleSelectAllPresenca()">☐ Marcar todos presentes</button>
+      </div>
+      <div id="listaPresenca" style="margin-top:2px"></div>
     </div>
   </section>
 
@@ -357,6 +417,11 @@
 
 <button class="fab" id="fabAdd" onclick="abrirModalAtleta()">+</button>
 
+<div class="selected-bar" id="selectedBar">
+  <span id="selectedBarText">0 selecionados</span>
+  <button class="btn btn-gold" style="padding:9px 14px;font-size:12.5px" onclick="irParaSorteioComSelecionados()">🎲 Sortear com estes</button>
+</div>
+
 <nav class="tabbar">
   <button class="active" data-tab="atletas" onclick="trocarTab('atletas')"><span class="ic">👥</span>Atletas</button>
   <button data-tab="sorteio" onclick="trocarTab('sorteio')"><span class="ic">🎲</span>Sorteio</button>
@@ -374,7 +439,7 @@
 <!-- MODAL ATLETA -->
 <div class="overlay" id="overlayAtleta">
   <div class="sheet">
-    <div class="sheet-head"><h3>Novo atleta</h3><button class="sheet-close" onclick="fecharModalAtleta()">✕</button></div>
+    <div class="sheet-head"><h3 id="modalAtletaTitulo">Novo atleta</h3><button class="sheet-close" onclick="fecharModalAtleta()">✕</button></div>
     <label class="field-label">Nome</label>
     <input id="inNome" placeholder="Nome do atleta">
     <label class="field-label">Posição</label>
@@ -408,15 +473,18 @@ const POSICOES = [
 ];
 const STORAGE_KEY = '4areia_state_v1';
 let state = load();
-let nivelSel = 3, posSel = 'QLQ', txTipoSel = 'entrada', numTimes = 2;
+let nivelSel = 3, posSel = 'QLQ', txTipoSel = 'entrada', porTime = 4, numTimesSorteio = 2;
+let editandoId = null;
+let openKebabId = null;
 
 function load(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return {athletes:[], attendance:{}, finance:[], lastTeams:null};
+  return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[]};
 }
+if(!state.selected) state.selected = [];
 function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function brl(v){ return 'R$ '+Number(v||0).toFixed(2).replace('.',','); }
@@ -433,7 +501,8 @@ function trocarTab(tab){
   document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  document.getElementById('fabAdd').style.display = (tab==='atletas')? 'flex':'none';
+  if(tab==='atletas') renderAtletas();
+  else { document.getElementById('fabAdd').style.display='none'; document.getElementById('selectedBar').classList.remove('show'); }
   if(tab==='presenca') renderPresenca();
   if(tab==='caixa') renderCaixa();
   if(tab==='ranking') renderRanking();
@@ -451,9 +520,23 @@ function renderMoonPick(){
   ).join('');
 }
 function abrirModalAtleta(){
+  editandoId = null;
+  document.getElementById('modalAtletaTitulo').textContent = 'Novo atleta';
   document.getElementById('inNome').value='';
   document.getElementById('inFoto').value='';
   posSel='QLQ'; nivelSel=3;
+  renderPosChips(); renderMoonPick();
+  document.getElementById('overlayAtleta').classList.add('open');
+}
+function abrirModalEditar(id){
+  fecharKebabs();
+  const a = state.athletes.find(x=>x.id===id);
+  if(!a) return;
+  editandoId = id;
+  document.getElementById('modalAtletaTitulo').textContent = 'Editar atleta';
+  document.getElementById('inNome').value = a.nome;
+  document.getElementById('inFoto').value = a.foto || '';
+  posSel = a.pos; nivelSel = a.nivel;
   renderPosChips(); renderMoonPick();
   document.getElementById('overlayAtleta').classList.add('open');
 }
@@ -461,63 +544,142 @@ function fecharModalAtleta(){ document.getElementById('overlayAtleta').classList
 function salvarAtleta(){
   const nome = document.getElementById('inNome').value.trim();
   if(!nome){ alert('Digite o nome do atleta'); return; }
-  state.athletes.push({id:uid(), nome, pos:posSel, nivel:nivelSel, foto:document.getElementById('inFoto').value.trim()});
+  const foto = document.getElementById('inFoto').value.trim();
+  if(editandoId){
+    const a = state.athletes.find(x=>x.id===editandoId);
+    if(a){ a.nome=nome; a.pos=posSel; a.nivel=nivelSel; a.foto=foto; }
+  }else{
+    state.athletes.push({id:uid(), nome, pos:posSel, nivel:nivelSel, foto});
+  }
   persist(); fecharModalAtleta(); renderTudo();
 }
 function excluirAtleta(id){
+  fecharKebabs();
   if(!confirm('Remover este atleta?')) return;
   state.athletes = state.athletes.filter(a=>a.id!==id);
+  state.selected = state.selected.filter(x=>x!==id);
   persist(); renderTudo();
 }
+
+/* -------- SELEÇÃO (modo escolha, estilo Tira Time) -------- */
+function toggleSelecionado(id){
+  const i = state.selected.indexOf(id);
+  if(i>-1) state.selected.splice(i,1); else state.selected.push(id);
+  persist(); renderAtletas();
+}
+function toggleSelectAll(){
+  const todosIds = state.athletes.map(a=>a.id);
+  const todosSelecionados = todosIds.length>0 && todosIds.every(id=>state.selected.includes(id));
+  state.selected = todosSelecionados? [] : todosIds;
+  persist(); renderAtletas();
+}
+function excluirSelecionados(){
+  if(!state.selected.length) return;
+  if(!confirm(`Remover ${state.selected.length} atleta(s) selecionado(s)?`)) return;
+  state.athletes = state.athletes.filter(a=>!state.selected.includes(a.id));
+  state.selected = [];
+  persist(); renderTudo();
+}
+function irParaSorteioComSelecionados(){
+  trocarTab('sorteio');
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab==='sorteio'));
+  sortear();
+}
+function toggleKebab(id, ev){
+  ev.stopPropagation();
+  openKebabId = (openKebabId===id)? null : id;
+  renderAtletas();
+}
+function fecharKebabs(){ openKebabId = null; }
+document.addEventListener('click', ()=>{ if(openKebabId){ openKebabId=null; renderAtletas(); } });
+
 function renderAtletas(){
   const wrap = document.getElementById('listaAtletas');
   document.getElementById('countAtletas').textContent = state.athletes.length;
   document.getElementById('statAthletes').textContent = state.athletes.length;
   document.getElementById('greetCount').textContent = state.athletes.length;
+
+  const todosIds = state.athletes.map(a=>a.id);
+  const todosSelecionados = todosIds.length>0 && todosIds.every(id=>state.selected.includes(id));
+  const btnAll = document.getElementById('btnSelectAll');
+  btnAll.textContent = todosSelecionados? '☑ Desmarcar todos' : '☐ Selecionar todos';
+  btnAll.classList.toggle('all-on', todosSelecionados);
+  document.getElementById('btnBulkDelete').style.display = state.selected.length? 'block':'none';
+
+  const bar = document.getElementById('selectedBar');
+  const barAtiva = state.selected.length>0 && document.getElementById('tab-atletas').classList.contains('active');
+  bar.classList.toggle('show', barAtiva);
+  document.getElementById('selectedBarText').textContent = `${state.selected.length} selecionado(s) pra jogar hoje`;
+  document.getElementById('fabAdd').style.display = (document.getElementById('tab-atletas').classList.contains('active') && !barAtiva)? 'flex':'none';
+
   if(!state.athletes.length){
     wrap.innerHTML = `<div class="empty"><span>🏐</span>Nenhum atleta cadastrado ainda.<br>Toque no + para adicionar o primeiro.</div>`;
     return;
   }
-  wrap.innerHTML = state.athletes.map(a=>`
-    <div class="ath-card">
+  wrap.innerHTML = state.athletes.map(a=>{
+    const on = state.selected.includes(a.id);
+    return `
+    <div class="ath-card ${on?'selected':''}">
+      <div class="check-circle ${on?'on':''}" onclick="toggleSelecionado('${a.id}')">${on?'✓':''}</div>
       ${a.foto? `<img class="avatar" src="${a.foto}" onerror="this.style.display='none'">` : `<div class="avatar">${a.nome.slice(0,2).toUpperCase()}</div>`}
-      <div class="ath-info">
+      <div class="ath-info" onclick="toggleSelecionado('${a.id}')">
         <div class="name">${a.nome}</div>
         <div class="ath-meta">
           <span class="pos-chip">${a.pos}</span>
           <span class="mini-moons">${[1,2,3,4,5].map(i=>moonIcon(i<=a.nivel)).join('')}</span>
         </div>
       </div>
-      <div class="ath-actions">
-        <button class="icon-btn" onclick="excluirAtleta('${a.id}')">🗑️</button>
+      <div class="kebab-wrap">
+        <button class="icon-btn" onclick="toggleKebab('${a.id}', event)">⋮</button>
+        <div class="kebab-menu ${openKebabId===a.id?'open':''}">
+          <button onclick="abrirModalEditar('${a.id}')">✏️ Editar</button>
+          <button class="danger" onclick="excluirAtleta('${a.id}')">🗑️ Excluir</button>
+        </div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 /* ---------------- SORTEIO ---------------- */
-function changeTeams(d){
-  numTimes = Math.max(2, Math.min(8, numTimes+d));
-  document.getElementById('numTimesVal').textContent = numTimes;
+function poolSorteio(){
+  return state.selected.length? state.athletes.filter(a=>state.selected.includes(a.id)) : state.athletes;
+}
+function changePorTime(d){
+  porTime = Math.max(2, Math.min(8, porTime+d));
+  document.getElementById('porTimeVal').textContent = porTime;
+}
+function changeNumTimes(d){
+  numTimesSorteio = Math.max(2, Math.min(8, numTimesSorteio+d));
+  document.getElementById('numTimesVal').textContent = numTimesSorteio;
 }
 function sortear(){
-  if(state.athletes.length < numTimes){ alert('Cadastre mais atletas do que o número de times.'); return; }
-  const ordenado = [...state.athletes].sort((a,b)=>b.nivel-a.nivel);
+  const pool = poolSorteio();
+  if(pool.length < 2){ alert('Selecione pelo menos 2 atletas na aba Elenco.'); return; }
+  const numTimes = numTimesSorteio;
+  const vagas = numTimes * porTime;
+  const ordenado = [...pool].sort((a,b)=>b.nivel-a.nivel);
   const times = Array.from({length:numTimes},()=>[]);
-  let dir = 1, idx = 0;
+  const banco = [];
+  let t = 0;
   ordenado.forEach(a=>{
-    times[idx].push(a);
-    idx += dir;
-    if(idx===numTimes){ idx=numTimes-1; dir=-1; }
-    else if(idx<0){ idx=0; dir=1; }
+    let tentativas = 0;
+    while(times[t].length >= porTime && tentativas < numTimes){ t = (t+1)%numTimes; tentativas++; }
+    if(times[t].length < porTime){
+      times[t].push(a);
+      t = (t+1)%numTimes;
+    }else{
+      banco.push(a);
+    }
   });
-  state.lastTeams = times.map(t=>t.map(a=>a.id));
+  state.lastTeams = times.map(tm=>tm.map(a=>a.id));
+  state.lastBanco = banco.map(a=>a.id);
   persist();
-  renderTimes(times);
+  renderTimes(times, banco, vagas, pool.length);
 }
-function renderTimes(times){
+function renderTimes(times, banco, vagas, totalPool){
   const wrap = document.getElementById('timesResultado');
-  if(!times){ wrap.innerHTML=''; return; }
+  const bancoWrap = document.getElementById('bancoResultado');
+  if(!times){ wrap.innerHTML=''; if(bancoWrap) bancoWrap.innerHTML=''; return; }
   wrap.innerHTML = times.map((t,i)=>{
     const media = t.length? (t.reduce((s,a)=>s+a.nivel,0)/t.length).toFixed(1) : '0';
     return `<div class="team-card">
@@ -525,6 +687,18 @@ function renderTimes(times){
       <ul>${t.map(a=>`<li><span>${a.nome}</span><span>${a.pos}</span></li>`).join('')}</ul>
     </div>`;
   }).join('');
+  if(bancoWrap){
+    if(banco && banco.length){
+      const msg = banco.length===1
+        ? '1 jogador vai ficar no banco nesta rodada:'
+        : `${banco.length} jogadores vão ficar no banco nesta rodada:`;
+      bancoWrap.innerHTML = `<div class="banco-card">🪑 <b>${msg}</b><div class="banco-names">${banco.map(a=>a.nome).join(', ')}</div></div>`;
+    }else if(totalPool < vagas){
+      bancoWrap.innerHTML = `<div class="banco-card">⚠️ Faltam <b>${vagas-totalPool}</b> jogador(es) pra completar todos os times com ${vagas/times.length} cada.</div>`;
+    }else{
+      bancoWrap.innerHTML = '';
+    }
+  }
 }
 function compartilharTimes(){
   if(!state.lastTeams){ alert('Sorteie os times primeiro.'); return; }
@@ -537,6 +711,14 @@ function compartilharTimes(){
     });
     txt += '\\n';
   });
+  const banco = state.lastBanco||[];
+  if(banco.length){
+    txt += '🪑 *Banco*\\n';
+    banco.forEach(id=>{
+      const a = state.athletes.find(x=>x.id===id);
+      if(a) txt += `• ${a.nome}\\n`;
+    });
+  }
   window.open('https://wa.me/?text='+encodeURIComponent(txt), '_blank');
 }
 
@@ -547,13 +729,24 @@ function renderPresenca(){
   const data = dateInput.value;
   if(!state.attendance[data]) state.attendance[data] = {};
   const wrap = document.getElementById('listaPresenca');
+
+  const btnAll = document.getElementById('btnSelectAllPresenca');
+  const todosPresentes = state.athletes.length>0 && state.athletes.every(a=>state.attendance[data][a.id]);
+  btnAll.textContent = todosPresentes? '☑ Desmarcar todos' : '☐ Marcar todos presentes';
+  btnAll.classList.toggle('all-on', todosPresentes);
+
   if(!state.athletes.length){
     wrap.innerHTML = `<div class="empty"><span>📋</span>Cadastre atletas para marcar presença.</div>`;
   }else{
     wrap.innerHTML = state.athletes.map(a=>{
       const on = !!state.attendance[data][a.id];
-      return `<div class="att-row"><span>${a.nome}</span>
-        <button class="toggle-att ${on?'on':''}" onclick="togglePresenca('${data}','${a.id}')">${on?'Presente ✓':'Marcar'}</button>
+      return `<div class="ath-card ${on?'selected':''}" style="margin-bottom:10px">
+        <div class="check-circle ${on?'on':''}" onclick="togglePresenca('${data}','${a.id}')">${on?'✓':''}</div>
+        ${a.foto? `<img class="avatar" src="${a.foto}" onerror="this.style.display='none'">` : `<div class="avatar">${a.nome.slice(0,2).toUpperCase()}</div>`}
+        <div class="ath-info" onclick="togglePresenca('${data}','${a.id}')">
+          <div class="name">${a.nome}</div>
+          <div class="ath-meta"><span class="pos-chip">${a.pos}</span></div>
+        </div>
       </div>`;
     }).join('');
   }
@@ -562,6 +755,14 @@ function renderPresenca(){
 }
 function togglePresenca(data,id){
   state.attendance[data][id] = !state.attendance[data][id];
+  persist(); renderPresenca();
+}
+function toggleSelectAllPresenca(){
+  const dateInput = document.getElementById('dataPresenca');
+  const data = dateInput.value;
+  if(!state.attendance[data]) state.attendance[data] = {};
+  const todosPresentes = state.athletes.length>0 && state.athletes.every(a=>state.attendance[data][a.id]);
+  state.athletes.forEach(a=>{ state.attendance[data][a.id] = !todosPresentes; });
   persist(); renderPresenca();
 }
 
@@ -660,7 +861,10 @@ function renderTudo(){
 renderTudo();
 if(state.lastTeams){
   const times = state.lastTeams.map(ids=>ids.map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean));
-  renderTimes(times);
+  const banco = (state.lastBanco||[]).map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean);
+  const vagas = times.length * porTime;
+  const totalPool = times.reduce((s,t)=>s+t.length,0) + banco.length;
+  renderTimes(times, banco, vagas, totalPool);
 }
 
 /* ---------------- PWA: INSTALAÇÃO ---------------- */
