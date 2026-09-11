@@ -95,6 +95,7 @@
     margin-left:auto;background:rgba(255,255,255,.12);border:0;border-radius:12px;
     width:38px;height:38px;font-size:17px;cursor:pointer;flex-shrink:0;color:#fff;
   }
+  .head-config-btn + .head-config-btn{margin-left:8px}
   .wave{
     position:absolute; left:0; right:0; bottom:-1px; width:100%; height:44px; z-index:1;
   }
@@ -394,6 +395,7 @@
       <h1>4ª Areia</h1>
       <p>@4areiavoleibol</p>
     </div>
+    <button class="head-config-btn" id="btnLock" onclick="toggleModoEdicao()">🔒</button>
     <button class="head-config-btn" onclick="abrirConfig()">⚙️</button>
   </div>
   <p class="head-greet">E aí, time! <b id="greetCount">—</b> atletas prontos pra jogar 🏐</p>
@@ -594,7 +596,7 @@
     </div>
     <div id="detalheEventoResumo"></div>
     <div id="detalheEventoLista" style="margin-top:8px"></div>
-    <button class="btn btn-danger btn-block" style="margin-top:16px" onclick="excluirEvento()">🗑️ Excluir evento</button>
+    <button class="btn btn-danger btn-block" id="btnExcluirEvento" style="margin-top:16px" onclick="excluirEvento()">🗑️ Excluir evento</button>
   </div>
 </div>
 
@@ -631,6 +633,40 @@ let eventoTipoSel = 'churrasco';
 let editandoEventoId = null;
 let eventoDetalheId = null;
 let syncTimer = null;
+const EDIT_PIN = '4areia2021';
+let modoEdicao = localStorage.getItem('4areia_edit_unlocked') === '1';
+function podeEditar(){
+  if(!modoEdicao){
+    alert('🔒 Modo somente visualização.\n\nToque no cadeado no topo do app e digite o código pra habilitar edição neste aparelho.');
+    return false;
+  }
+  return true;
+}
+function toggleModoEdicao(){
+  if(modoEdicao){
+    if(!confirm('Voltar pro modo somente visualização neste aparelho?')) return;
+    modoEdicao = false;
+    localStorage.removeItem('4areia_edit_unlocked');
+  }else{
+    const codigo = prompt('Digite o código de edição:');
+    if(codigo === null) return;
+    if(codigo === EDIT_PIN){
+      modoEdicao = true;
+      localStorage.setItem('4areia_edit_unlocked','1');
+    }else{
+      alert('Código incorreto.');
+      return;
+    }
+  }
+  atualizarBotaoEdicao();
+  renderTudo(); renderUltimoSorteio();
+  if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
+  if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
+}
+function atualizarBotaoEdicao(){
+  const btn = document.getElementById('btnLock');
+  if(btn) btn.textContent = modoEdicao ? '🔓' : '🔒';
+}
 
 function defaultState(){
   return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}};
@@ -704,6 +740,7 @@ function exportarDados(){
   }
 }
 async function importarDados(){
+  if(!podeEditar()) return;
   const texto = document.getElementById('inImportar').value.trim();
   if(!texto){ alert('Cole os dados no campo antes de importar.'); return; }
   let novo;
@@ -841,6 +878,7 @@ function abrirModalEditar(id){
 }
 function fecharModalAtleta(){ document.getElementById('overlayAtleta').classList.remove('open'); }
 function salvarAtleta(){
+  if(!podeEditar()) return;
   const nome = document.getElementById('inNome').value.trim();
   if(!nome){ alert('Digite o nome do atleta'); return; }
   const foto = fotoAtual || document.getElementById('inFoto').value.trim();
@@ -853,6 +891,7 @@ function salvarAtleta(){
   persist(); fecharModalAtleta(); renderTudo();
 }
 function excluirAtleta(id){
+  if(!podeEditar()) return;
   fecharKebabs();
   if(!confirm('Remover este atleta?')) return;
   state.athletes = state.athletes.filter(a=>a.id!==id);
@@ -862,17 +901,20 @@ function excluirAtleta(id){
 
 /* -------- SELEÇÃO (modo escolha, estilo Tira Time) -------- */
 function toggleSelecionado(id){
+  if(!podeEditar()) return;
   const i = state.selected.indexOf(id);
   if(i>-1) state.selected.splice(i,1); else state.selected.push(id);
   persist(); renderAtletas();
 }
 function toggleSelectAll(){
+  if(!podeEditar()) return;
   const todosIds = state.athletes.map(a=>a.id);
   const todosSelecionados = todosIds.length>0 && todosIds.every(id=>state.selected.includes(id));
   state.selected = todosSelecionados? [] : todosIds;
   persist(); renderAtletas();
 }
 function excluirSelecionados(){
+  if(!podeEditar()) return;
   if(!state.selected.length) return;
   if(!confirm(`Remover ${state.selected.length} atleta(s) selecionado(s)?`)) return;
   state.athletes = state.athletes.filter(a=>!state.selected.includes(a.id));
@@ -909,7 +951,7 @@ function renderAtletas(){
   const barAtiva = state.selected.length>0 && document.getElementById('tab-atletas').classList.contains('active');
   bar.classList.toggle('show', barAtiva);
   document.getElementById('selectedBarText').textContent = `${state.selected.length} selecionado(s) pra jogar hoje`;
-  document.getElementById('fabAdd').style.display = (document.getElementById('tab-atletas').classList.contains('active') && !barAtiva)? 'flex':'none';
+  document.getElementById('fabAdd').style.display = (modoEdicao && document.getElementById('tab-atletas').classList.contains('active') && !barAtiva)? 'flex':'none';
 
   if(!state.athletes.length){
     wrap.innerHTML = `<div class="empty"><span>🏐</span>Nenhum atleta cadastrado ainda.<br>Toque no + para adicionar o primeiro.</div>`;
@@ -928,13 +970,13 @@ function renderAtletas(){
           <span class="mini-moons">${[1,2,3,4,5].map(i=>moonIcon(i<=a.nivel)).join('')}</span>
         </div>
       </div>
-      <div class="kebab-wrap">
+      ${modoEdicao? `<div class="kebab-wrap">
         <button class="icon-btn" onclick="toggleKebab('${a.id}', event)">⋮</button>
         <div class="kebab-menu ${openKebabId===a.id?'open':''}">
           <button onclick="abrirModalEditar('${a.id}')">✏️ Editar</button>
           <button class="danger" onclick="excluirAtleta('${a.id}')">🗑️ Excluir</button>
         </div>
-      </div>
+      </div>` : ''}
     </div>
   `}).join('');
 }
@@ -959,6 +1001,7 @@ function embaralhar(arr){
   return arr;
 }
 function sortear(){
+  if(!podeEditar()) return;
   const pool = poolSorteio();
   if(pool.length < 2){ alert('Selecione pelo menos 2 atletas na aba Elenco.'); return; }
   const numTimes = numTimesSorteio;
@@ -1107,10 +1150,12 @@ function renderPresenca(){
   document.getElementById('statToday').textContent = presentesHoje;
 }
 function togglePresenca(data,id){
+  if(!podeEditar()) return;
   state.attendance[data][id] = !state.attendance[data][id];
   persist(); renderPresenca();
 }
 function toggleSelectAllPresenca(){
+  if(!podeEditar()) return;
   const dateInput = document.getElementById('dataPresenca');
   const data = dateInput.value;
   if(!state.attendance[data]) state.attendance[data] = {};
@@ -1132,6 +1177,7 @@ function abrirModalTx(){
 }
 function fecharModalTx(){ document.getElementById('overlayTx').classList.remove('open'); }
 function salvarTx(){
+  if(!podeEditar()) return;
   const desc = document.getElementById('inTxDesc').value.trim();
   const valor = parseFloat(document.getElementById('inTxValor').value);
   if(!desc || !valor){ alert('Preencha descrição e valor'); return; }
@@ -1139,6 +1185,7 @@ function salvarTx(){
   persist(); fecharModalTx(); renderCaixa();
 }
 function excluirTx(id){
+  if(!podeEditar()) return;
   state.finance = state.finance.filter(t=>t.id!==id);
   Object.values(state.mensalidades).forEach(mes=>{
     Object.keys(mes).forEach(athId=>{
@@ -1162,13 +1209,13 @@ function renderCaixa(){
   document.getElementById('statBalance').textContent = 'R$'+(entradas-saidas).toFixed(0);
   const wrap = document.getElementById('listaTransacoes');
   const list = [...state.finance].reverse();
-  wrap.innerHTML = `<button class="btn btn-gold btn-block" onclick="abrirModalTx()" style="margin-bottom:12px">+ Nova movimentação</button>` +
+  wrap.innerHTML = (modoEdicao? `<button class="btn btn-gold btn-block" onclick="abrirModalTx()" style="margin-bottom:12px">+ Nova movimentação</button>` : '') +
     (list.length? list.map(t=>`
       <div class="tx-row">
         <div><div class="tx-desc">${t.desc}</div><div class="tx-date">${t.data}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="tx-val ${t.tipo==='entrada'?'in':'out'}">${t.tipo==='entrada'?'+':'-'} ${brl(t.valor)}</span>
-          <button class="icon-btn" onclick="excluirTx('${t.id}')">🗑️</button>
+          ${modoEdicao? `<button class="icon-btn" onclick="excluirTx('${t.id}')">🗑️</button>` : ''}
         </div>
       </div>`).join('') : `<div class="empty"><span>💰</span>Nenhuma movimentação registrada.</div>`);
 }
@@ -1181,6 +1228,7 @@ function mesLabel(mesKey){
   return nomes[parseInt(mes,10)-1] + '/' + ano;
 }
 function onValorMensalidadeChange(){
+  if(!podeEditar()) return;
   const v = parseFloat(document.getElementById('inValorMensalidade').value);
   state.valorMensalidade = isNaN(v) ? 0 : v;
   persist();
@@ -1190,6 +1238,7 @@ function renderMensalidades(){
   if(!mesInput.value) mesInput.value = mesAtualStr();
   const mes = mesInput.value;
   document.getElementById('inValorMensalidade').value = state.valorMensalidade;
+  document.getElementById('inValorMensalidade').disabled = !modoEdicao;
   if(!state.mensalidades[mes]) state.mensalidades[mes] = {};
   const mensalistas = state.athletes.filter(a=>(a.tipo||'mensalista')==='mensalista');
   const wrap = document.getElementById('listaMensalidades');
@@ -1207,6 +1256,7 @@ function renderMensalidades(){
   }).join('');
 }
 function toggleMensalidade(mes, athleteId){
+  if(!podeEditar()) return;
   if(!state.mensalidades[mes]) state.mensalidades[mes] = {};
   const registro = state.mensalidades[mes][athleteId];
   const a = state.athletes.find(x=>x.id===athleteId);
@@ -1263,6 +1313,7 @@ function abrirModalEventoEditar(id){
 }
 function fecharModalEvento(){ document.getElementById('overlayEvento').classList.remove('open'); }
 function salvarEvento(){
+  if(!podeEditar()) return;
   const nome = document.getElementById('inEventoNome').value.trim();
   if(!nome){ alert('Digite o nome do evento'); return; }
   const dados = {
@@ -1291,12 +1342,12 @@ function renderEventos(){
   const wrap = document.getElementById('listaEventos');
   document.getElementById('countEventos').textContent = state.eventos.length;
   if(!state.eventos.length){
-    wrap.innerHTML = `<div class="empty"><span>🎉</span>Nenhum evento cadastrado ainda.<br>Toque no botão abaixo pra criar o primeiro.</div>
-      <button class="btn btn-gold btn-block" style="margin-top:12px" onclick="abrirModalEvento()">+ Novo evento</button>`;
+    wrap.innerHTML = `<div class="empty"><span>🎉</span>Nenhum evento cadastrado ainda.${modoEdicao?'<br>Toque no botão abaixo pra criar o primeiro.':''}</div>
+      ${modoEdicao? `<button class="btn btn-gold btn-block" style="margin-top:12px" onclick="abrirModalEvento()">+ Novo evento</button>` : ''}`;
     return;
   }
   const ordenados = [...state.eventos].sort((a,b)=> (a.data||'9999').localeCompare(b.data||'9999'));
-  wrap.innerHTML = `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="abrirModalEvento()">+ Novo evento</button>` +
+  wrap.innerHTML = (modoEdicao? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="abrirModalEvento()">+ Novo evento</button>` : '') +
     ordenados.map(ev=>{
       const t = TIPOS_EVENTO[ev.tipo] || TIPOS_EVENTO.outro;
       const dias = diasParaEvento(ev.data);
@@ -1357,8 +1408,9 @@ function renderDetalheEvento(){
       <div class="resumo-chip">Previsto<b>${brl(totalPrevisto)}</b></div>
       <div class="resumo-chip">Arrecadado<b>${brl(totalArrecadado)}</b></div>
     </div>
-    <button class="btn btn-ghost btn-block" style="margin:10px 0" onclick="abrirModalEventoEditar('${ev.id}')">✏️ Editar dados do evento</button>
+    ${modoEdicao? `<button class="btn btn-ghost btn-block" style="margin:10px 0" onclick="abrirModalEventoEditar('${ev.id}')">✏️ Editar dados do evento</button>` : ''}
   `;
+  document.getElementById('btnExcluirEvento').style.display = modoEdicao? 'block':'none';
 
   document.getElementById('detalheEventoLista').innerHTML = state.athletes.map(a=>{
     const p = part[a.id] || { confirmado:false, convidados:0, pago:false };
@@ -1376,18 +1428,21 @@ function renderDetalheEvento(){
   }).join('');
 }
 function toggleConfirmacaoEvento(athleteId){
+  if(!podeEditar()) return;
   const part = state.participacoes[eventoDetalheId];
   if(!part[athleteId]) part[athleteId] = { confirmado:false, convidados:0, pago:false };
   part[athleteId].confirmado = !part[athleteId].confirmado;
   persist(); renderDetalheEvento(); renderEventos();
 }
 function mudarConvidados(athleteId, delta){
+  if(!podeEditar()) return;
   const part = state.participacoes[eventoDetalheId];
   if(!part[athleteId]) part[athleteId] = { confirmado:true, convidados:0, pago:false };
   part[athleteId].convidados = Math.max(0, (part[athleteId].convidados||0)+delta);
   persist(); renderDetalheEvento();
 }
 function togglePagamentoEvento(athleteId){
+  if(!podeEditar()) return;
   const ev = state.eventos.find(e=>e.id===eventoDetalheId);
   const part = state.participacoes[eventoDetalheId];
   if(!part[athleteId]) part[athleteId] = { confirmado:true, convidados:0, pago:false };
@@ -1409,6 +1464,7 @@ function togglePagamentoEvento(athleteId){
   persist(); renderDetalheEvento(); renderEventos(); renderCaixa();
 }
 function excluirEvento(){
+  if(!podeEditar()) return;
   const ev = state.eventos.find(e=>e.id===eventoDetalheId);
   if(!ev) return;
   if(!confirm(`Excluir o evento "${ev.nome}"? Isso não apaga as movimentações já lançadas no caixa.`)) return;
@@ -1509,6 +1565,7 @@ async function iniciarApp(){
   renderTudo();
   renderUltimoSorteio();
 }
+atualizarBotaoEdicao();
 iniciarApp();
 
 /* ---------------- PWA: INSTALAÇÃO ---------------- */
