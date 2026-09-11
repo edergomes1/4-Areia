@@ -88,6 +88,13 @@
     position:relative; z-index:2; margin:4px 0 0; font-size:11.5px;
     color:var(--gold-light); font-weight:600;
   }
+  .sync-status{position:relative;z-index:2;margin:6px 0 0;font-size:10.5px;color:rgba(255,255,255,.55)}
+  .sync-status.sync-ok{color:#8FDDB0}
+  .sync-status.sync-off{color:var(--gold-light)}
+  .head-config-btn{
+    margin-left:auto;background:rgba(255,255,255,.12);border:0;border-radius:12px;
+    width:38px;height:38px;font-size:17px;cursor:pointer;flex-shrink:0;color:#fff;
+  }
   .wave{
     position:absolute; left:0; right:0; bottom:-1px; width:100%; height:44px; z-index:1;
   }
@@ -387,9 +394,11 @@
       <h1>4ª Areia</h1>
       <p>@4areiavoleibol</p>
     </div>
+    <button class="head-config-btn" onclick="abrirConfig()">⚙️</button>
   </div>
   <p class="head-greet">E aí, time! <b id="greetCount">—</b> atletas prontos pra jogar 🏐</p>
   <p class="head-fundacao">🎂 Fundado em 28/09/2021</p>
+  <p id="syncStatus" class="sync-status"></p>
   <svg class="wave" viewBox="0 0 500 44" preserveAspectRatio="none">
     <path d="M0,20 C90,44 170,0 260,18 C340,34 420,6 500,22 L500,44 L0,44 Z" fill="#F6EFDF"></path>
   </svg>
@@ -589,6 +598,21 @@
   </div>
 </div>
 
+<!-- MODAL CONFIGURAÇÕES / SINCRONIZAÇÃO -->
+<div class="overlay" id="overlayConfig">
+  <div class="sheet">
+    <div class="sheet-head"><h3>⚙️ Dados e sincronização</h3><button class="sheet-close" onclick="fecharConfig()">✕</button></div>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">
+      O app salva tudo numa nuvem compartilhada, então o mesmo elenco, caixa e eventos aparecem no computador e no celular.
+      Se este aparelho já tinha dados antigos (salvos só localmente), use as opções abaixo pra migrar.
+    </p>
+    <button class="btn btn-navy btn-block" onclick="exportarDados()">📋 Copiar dados deste aparelho</button>
+    <label class="field-label" style="margin-top:14px">Colar dados e substituir tudo</label>
+    <textarea id="inImportar" rows="5" style="width:100%;border-radius:10px;border:1.5px solid var(--sand-dark);background:var(--sand);font-family:monospace;font-size:11px;padding:10px"></textarea>
+    <button class="btn btn-gold btn-block" style="margin-top:8px" onclick="importarDados()">📥 Importar (substitui tudo na nuvem)</button>
+  </div>
+</div>
+
 <script>
 /* ---------------- ESTADO ---------------- */
 const POSICOES = [
@@ -596,7 +620,9 @@ const POSICOES = [
   {id:'CEN',nome:'Central'},{id:'LIB',nome:'Líbero'},{id:'QLQ',nome:'Qualquer'}
 ];
 const STORAGE_KEY = '4areia_state_v1';
-let state = load();
+const SUPABASE_URL = 'https://hoxclvcaiuzssbyveutd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhveGNsdmNhaXV6c3NieXZldXRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNjE1NTksImV4cCI6MjEwNDczNzU1OX0.eB-gk79k56eShWTLuMIgt3ukoUfokMdhcQY0cIhinTc';
+let state = defaultState();
 let nivelSel = 3, posSel = 'QLQ', generoSel = 'M', tipoSel = 'mensalista', txTipoSel = 'entrada', porTime = 4, numTimesSorteio = 2;
 let editandoId = null;
 let openKebabId = null;
@@ -604,22 +630,99 @@ let fotoAtual = '';
 let eventoTipoSel = 'churrasco';
 let editandoEventoId = null;
 let eventoDetalheId = null;
+let syncTimer = null;
 
-function load(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
+function defaultState(){
   return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}};
 }
-if(!state.selected) state.selected = [];
-if(!state.mensalidades) state.mensalidades = {};
-if(!state.valorMensalidade) state.valorMensalidade = 50;
-if(!state.eventos) state.eventos = [];
-if(!state.participacoes) state.participacoes = {};
-function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function garantirCampos(s){
+  if(!s.selected) s.selected = [];
+  if(!s.mensalidades) s.mensalidades = {};
+  if(!s.valorMensalidade) s.valorMensalidade = 50;
+  if(!s.eventos) s.eventos = [];
+  if(!s.participacoes) s.participacoes = {};
+  return s;
+}
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return garantirCampos(JSON.parse(raw));
+  }catch(e){}
+  return defaultState();
+}
+function saveLocal(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function setSyncStatus(txt, cls){
+  const el = document.getElementById('syncStatus');
+  if(el){ el.textContent = txt; el.className = 'sync-status '+(cls||''); }
+}
+async function buscarDaNuvem(){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1&select=data`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+  });
+  if(!res.ok) throw new Error('Falha ao buscar dados da nuvem');
+  const rows = await res.json();
+  if(!rows.length || !rows[0].data || Object.keys(rows[0].data).length===0) return null;
+  return garantirCampos(rows[0].data);
+}
+async function enviarParaNuvem(){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1`, {
+    method:'PATCH',
+    headers: {
+      apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type':'application/json', Prefer:'return=minimal'
+    },
+    body: JSON.stringify({ data: state, updated_at: new Date().toISOString() })
+  });
+  if(!res.ok) throw new Error('Falha ao salvar na nuvem');
+}
+function persist(){
+  saveLocal();
+  setSyncStatus('☁️ salvando...', 'sync-pending');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=>{
+    enviarParaNuvem()
+      .then(()=> setSyncStatus('☁️ sincronizado', 'sync-ok'))
+      .catch(()=> setSyncStatus('📴 sem conexão (salvo só neste aparelho)', 'sync-off'));
+  }, 500);
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function brl(v){ return 'R$ '+Number(v||0).toFixed(2).replace('.',','); }
+function abrirConfig(){ document.getElementById('overlayConfig').classList.add('open'); }
+function fecharConfig(){ document.getElementById('overlayConfig').classList.remove('open'); }
+function exportarDados(){
+  const texto = JSON.stringify(state);
+  const area = document.getElementById('inImportar');
+  area.value = texto;
+  area.select();
+  try{
+    document.execCommand('copy');
+    alert('Dados copiados! Cole numa conversa com o Claude, ou aqui mesmo no campo de importar em outro aparelho.');
+  }catch(e){
+    alert('Não deu pra copiar automaticamente — selecione o texto no campo abaixo e copie manualmente.');
+  }
+}
+async function importarDados(){
+  const texto = document.getElementById('inImportar').value.trim();
+  if(!texto){ alert('Cole os dados no campo antes de importar.'); return; }
+  let novo;
+  try{ novo = JSON.parse(texto); }catch(e){ alert('Esse texto não é um JSON válido.'); return; }
+  if(!confirm('Isso vai substituir TODOS os dados atuais (deste aparelho e da nuvem) pelos dados colados. Confirma?')) return;
+  state = garantirCampos(novo);
+  saveLocal();
+  setSyncStatus('☁️ salvando...', 'sync-pending');
+  try{
+    await enviarParaNuvem();
+    setSyncStatus('☁️ sincronizado', 'sync-ok');
+    alert('Importado e sincronizado com sucesso!');
+  }catch(e){
+    setSyncStatus('📴 sem conexão (salvo só neste aparelho)', 'sync-off');
+    alert('Salvo neste aparelho, mas não consegui enviar pra nuvem agora (sem internet?). Tente de novo com conexão.');
+  }
+  fecharConfig();
+  renderTudo(); renderUltimoSorteio();
+}
 
 /* ---------------- ÍCONE LUA (assinatura visual) ---------------- */
 function moonIcon(filled){
@@ -1370,15 +1473,43 @@ function renderTudo(){
   if(dateInput.value) renderPresenca();
   renderCaixa();
 }
-renderTudo();
-if(state.lastTeams){
-  const times = state.lastTeams.map(ids=>ids.map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean));
-  const banco = (state.lastBanco||[]).map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean);
-  const vagas = times.length * porTime;
-  const totalPool = times.reduce((s,t)=>s+t.length,0) + banco.length;
-  renderTimes(times, banco, vagas, totalPool);
-  document.getElementById('btnResortear').style.display = 'flex';
+function renderUltimoSorteio(){
+  if(state.lastTeams){
+    const times = state.lastTeams.map(ids=>ids.map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean));
+    const banco = (state.lastBanco||[]).map(id=>state.athletes.find(a=>a.id===id)).filter(Boolean);
+    const vagas = times.length * porTime;
+    const totalPool = times.reduce((s,t)=>s+t.length,0) + banco.length;
+    renderTimes(times, banco, vagas, totalPool);
+    document.getElementById('btnResortear').style.display = 'flex';
+  }
 }
+async function iniciarApp(){
+  setSyncStatus('☁️ carregando...', 'sync-pending');
+  const local = loadLocal();
+  state = local;
+  const localTemDados = local.athletes.length || local.finance.length || local.eventos.length;
+  try{
+    const nuvem = await buscarDaNuvem();
+    const nuvemTemDados = nuvem && (nuvem.athletes.length || nuvem.finance.length || nuvem.eventos.length);
+    if(nuvemTemDados){
+      // a nuvem já tem dados de verdade: usa ela como fonte da verdade
+      state = nuvem;
+      saveLocal();
+    }else if(localTemDados){
+      // nuvem vazia mas este aparelho já tem dados: envia pra nuvem (primeira sincronização)
+      state = local;
+      await enviarParaNuvem();
+    }else{
+      state = nuvem || local;
+    }
+    setSyncStatus('☁️ sincronizado', 'sync-ok');
+  }catch(e){
+    setSyncStatus('📴 sem conexão (mostrando dados salvos neste aparelho)', 'sync-off');
+  }
+  renderTudo();
+  renderUltimoSorteio();
+}
+iniciarApp();
 
 /* ---------------- PWA: INSTALAÇÃO ---------------- */
 let deferredPrompt;
