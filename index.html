@@ -240,6 +240,7 @@
   .part-row:last-child{border-bottom:0}
   .part-nome{flex:1;min-width:90px;font-size:13.5px;font-weight:600}
   .part-conv{display:flex;align-items:center;gap:6px}
+  .avulso-tag{background:var(--sand-dark);color:var(--ink-soft);font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;vertical-align:middle}
   .part-conv button{width:24px;height:24px;border-radius:7px;border:0;background:var(--sand-dark);color:var(--navy-900);font-weight:800;cursor:pointer}
   .part-conv span{font-size:12.5px;font-weight:700;min-width:14px;text-align:center}
   .resumo-evento{display:flex;gap:10px;margin-bottom:4px;flex-wrap:wrap}
@@ -1385,6 +1386,10 @@ function fecharDetalheEvento(){
   document.getElementById('overlayEventoDetalhe').classList.remove('open');
   eventoDetalheId = null;
 }
+function valorParticipante(ev, p){
+  if(p.valorCustom!==undefined && p.valorCustom!==null) return Number(p.valorCustom);
+  return ev.valorAtleta + (p.convidados||0)*ev.valorConvidado;
+}
 function renderDetalheEvento(){
   const ev = state.eventos.find(e=>e.id===eventoDetalheId);
   if(!ev) return;
@@ -1393,39 +1398,88 @@ function renderDetalheEvento(){
   if(!state.participacoes[ev.id]) state.participacoes[ev.id] = {};
   const part = state.participacoes[ev.id];
 
-  const confirmados = state.athletes.filter(a=>part[a.id] && part[a.id].confirmado);
-  const totalConvidados = confirmados.reduce((s,a)=>s+((part[a.id].convidados)||0),0);
-  const totalPrevisto = confirmados.reduce((s,a)=>{
-    const p = part[a.id];
-    return s + ev.valorAtleta + (p.convidados||0)*ev.valorConvidado;
-  },0);
+  // participantes = todo o elenco + pessoas avulsas adicionadas só pra este evento
+  const idsAtletas = state.athletes.map(a=>a.id);
+  const idsAvulsos = Object.keys(part).filter(id=>part[id] && part[id].avulso && !idsAtletas.includes(id));
+  const todosIds = [...idsAtletas, ...idsAvulsos];
+
+  const confirmadosIds = todosIds.filter(id=>part[id] && part[id].confirmado);
+  const totalConvidados = confirmadosIds.reduce((s,id)=>s+((part[id].convidados)||0),0);
+  const totalPrevisto = confirmadosIds.reduce((s,id)=>s+valorParticipante(ev, part[id]),0);
   const totalArrecadado = Object.values(part).filter(p=>p.pago).reduce((s,p)=>s+(p.valorCobrado||0),0);
 
   document.getElementById('detalheEventoResumo').innerHTML = `
     <div class="resumo-evento">
-      <div class="resumo-chip">Confirmados<b>${confirmados.length}</b></div>
+      <div class="resumo-chip">Confirmados<b>${confirmadosIds.length}</b></div>
       <div class="resumo-chip">Convidados<b>${totalConvidados}</b></div>
       <div class="resumo-chip">Previsto<b>${brl(totalPrevisto)}</b></div>
       <div class="resumo-chip">Arrecadado<b>${brl(totalArrecadado)}</b></div>
     </div>
-    ${modoEdicao? `<button class="btn btn-ghost btn-block" style="margin:10px 0" onclick="abrirModalEventoEditar('${ev.id}')">✏️ Editar dados do evento</button>` : ''}
+    ${modoEdicao? `<button class="btn btn-ghost btn-block" style="margin:10px 0 6px" onclick="abrirModalEventoEditar('${ev.id}')">✏️ Editar dados do evento</button>` : ''}
+    ${modoEdicao? `<button class="btn btn-navy btn-block" style="margin-bottom:4px" onclick="adicionarAvulso()">➕ Adicionar pessoa avulsa (não é do elenco)</button>` : ''}
   `;
   document.getElementById('btnExcluirEvento').style.display = modoEdicao? 'block':'none';
 
-  document.getElementById('detalheEventoLista').innerHTML = state.athletes.map(a=>{
-    const p = part[a.id] || { confirmado:false, convidados:0, pago:false };
-    const valorCobrar = ev.valorAtleta + (p.convidados||0)*ev.valorConvidado;
+  document.getElementById('detalheEventoLista').innerHTML = todosIds.map(id=>{
+    const p = part[id] || { confirmado:false, convidados:0, pago:false };
+    const avulso = !!p.avulso;
+    const nome = avulso ? p.nome : ((state.athletes.find(a=>a.id===id)||{}).nome || '');
+    const valorCobrar = valorParticipante(ev, p);
     return `<div class="part-row">
-      <div class="check-circle ${p.confirmado?'on':''}" onclick="toggleConfirmacaoEvento('${a.id}')">${p.confirmado?'✓':''}</div>
-      <span class="part-nome">${a.nome}</span>
+      <div class="check-circle ${p.confirmado?'on':''}" onclick="toggleConfirmacaoEvento('${id}')">${p.confirmado?'✓':''}</div>
+      <span class="part-nome">${nome}${avulso? ' <span class="avulso-tag">avulso</span>':''}</span>
       <div class="part-conv">
-        <button onclick="mudarConvidados('${a.id}',-1)">−</button>
+        <button onclick="mudarConvidados('${id}',-1)">−</button>
         <span>${p.convidados||0}👥</span>
-        <button onclick="mudarConvidados('${a.id}',1)">+</button>
+        <button onclick="mudarConvidados('${id}',1)">+</button>
       </div>
-      <button class="mensal-toggle ${p.pago?'pago':''}" onclick="togglePagamentoEvento('${a.id}')">${p.pago? brl(valorCobrar)+' ✓' : 'Cobrar '+brl(valorCobrar)}</button>
+      <button class="mensal-toggle ${p.pago?'pago':''}" onclick="togglePagamentoEvento('${id}')">${p.pago? brl(valorCobrar)+' ✓' : 'Cobrar '+brl(valorCobrar)}</button>
+      ${modoEdicao? `<button class="icon-btn" title="Editar valor cobrado" onclick="editarValorParticipante('${id}')">✏️</button>` : ''}
+      ${(modoEdicao && avulso)? `<button class="icon-btn" title="Remover pessoa" onclick="excluirAvulso('${id}')">🗑️</button>` : ''}
     </div>`;
   }).join('');
+}
+function adicionarAvulso(){
+  if(!podeEditar()) return;
+  const nome = prompt('Nome da pessoa avulsa (convidado que não é do elenco):');
+  if(!nome || !nome.trim()) return;
+  const id = 'avulso_'+uid();
+  if(!state.participacoes[eventoDetalheId]) state.participacoes[eventoDetalheId] = {};
+  state.participacoes[eventoDetalheId][id] = { confirmado:true, convidados:0, pago:false, avulso:true, nome:nome.trim() };
+  persist(); renderDetalheEvento(); renderEventos();
+}
+function excluirAvulso(id){
+  if(!podeEditar()) return;
+  if(!confirm('Remover esta pessoa do evento?')) return;
+  const part = state.participacoes[eventoDetalheId];
+  const p = part[id];
+  if(p && p.pago && p.txId){ state.finance = state.finance.filter(t=>t.id!==p.txId); }
+  delete part[id];
+  persist(); renderDetalheEvento(); renderEventos(); renderCaixa();
+}
+function editarValorParticipante(id){
+  if(!podeEditar()) return;
+  const ev = state.eventos.find(e=>e.id===eventoDetalheId);
+  const part = state.participacoes[eventoDetalheId];
+  if(!part[id]) part[id] = { confirmado:true, convidados:0, pago:false };
+  const p = part[id];
+  const atual = valorParticipante(ev, p);
+  const novo = prompt('Valor a cobrar dessa pessoa (R$). Deixe em branco pra voltar ao cálculo automático:', atual.toFixed(2));
+  if(novo === null) return;
+  if(novo.trim()===''){
+    p.valorCustom = null;
+  }else{
+    const n = parseFloat(novo.replace(',','.'));
+    if(isNaN(n) || n<0){ alert('Valor inválido.'); return; }
+    p.valorCustom = n;
+  }
+  if(p.pago && p.txId){
+    const tx = state.finance.find(tt=>tt.id===p.txId);
+    const novoValor = valorParticipante(ev, p);
+    if(tx) tx.valor = novoValor;
+    p.valorCobrado = novoValor;
+  }
+  persist(); renderDetalheEvento(); renderEventos(); renderCaixa();
 }
 function toggleConfirmacaoEvento(athleteId){
   if(!podeEditar()) return;
@@ -1447,16 +1501,16 @@ function togglePagamentoEvento(athleteId){
   const part = state.participacoes[eventoDetalheId];
   if(!part[athleteId]) part[athleteId] = { confirmado:true, convidados:0, pago:false };
   const p = part[athleteId];
-  const a = state.athletes.find(x=>x.id===athleteId);
+  const nome = p.avulso ? p.nome : ((state.athletes.find(x=>x.id===athleteId)||{}).nome || '');
   if(p.pago){
     state.finance = state.finance.filter(t=>t.id !== p.txId);
     p.pago = false; p.txId = null; p.valorCobrado = 0;
   }else{
-    const valor = ev.valorAtleta + (p.convidados||0)*ev.valorConvidado;
+    const valor = valorParticipante(ev, p);
     const txId = uid();
     state.finance.push({
       id:txId, tipo:'entrada',
-      desc:`Evento ${ev.nome} - ${a? a.nome:''}${p.convidados? ' (+'+p.convidados+' convidado(s))':''}`,
+      desc:`Evento ${ev.nome} - ${nome}${p.convidados? ' (+'+p.convidados+' convidado(s))':''}`,
       valor, data:new Date().toISOString().slice(0,10)
     });
     p.pago = true; p.txId = txId; p.valorCobrado = valor;
