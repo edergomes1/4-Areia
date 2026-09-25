@@ -605,6 +605,7 @@
 <div class="overlay" id="overlayConfig">
   <div class="sheet">
     <div class="sheet-head"><h3>⚙️ Dados e sincronização</h3><button class="sheet-close" onclick="fecharConfig()">✕</button></div>
+    <div id="contaLogada"></div>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">
       O app salva tudo numa nuvem compartilhada, então o mesmo elenco, caixa e eventos aparecem no computador e no celular.
       Se este aparelho já tinha dados antigos (salvos só localmente), use as opções abaixo pra migrar.
@@ -613,6 +614,19 @@
     <label class="field-label" style="margin-top:14px">Colar dados e substituir tudo</label>
     <textarea id="inImportar" rows="5" style="width:100%;border-radius:10px;border:1.5px solid var(--sand-dark);background:var(--sand);font-family:monospace;font-size:11px;padding:10px"></textarea>
     <button class="btn btn-gold btn-block" style="margin-top:8px" onclick="importarDados()">📥 Importar (substitui tudo na nuvem)</button>
+  </div>
+</div>
+
+<!-- MODAL LOGIN (edição real, via Supabase Auth) -->
+<div class="overlay" id="overlayLogin">
+  <div class="sheet">
+    <div class="sheet-head"><h3>🔒 Entrar para editar</h3><button class="sheet-close" onclick="fecharLogin()">✕</button></div>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">Só quem tem login de administrador consegue alterar dados. O resto do time continua vendo tudo normalmente.</p>
+    <label class="field-label">Email</label>
+    <input type="email" id="inLoginEmail" placeholder="seuemail@exemplo.com">
+    <label class="field-label">Senha</label>
+    <input type="password" id="inLoginSenha" placeholder="••••••••">
+    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="enviarLogin()">Entrar</button>
   </div>
 </div>
 
@@ -634,35 +648,113 @@ let eventoTipoSel = 'churrasco';
 let editandoEventoId = null;
 let eventoDetalheId = null;
 let syncTimer = null;
-const EDIT_PIN = '4areia2021';
-let modoEdicao = localStorage.getItem('4areia_edit_unlocked') === '1';
+const AUTH_STORAGE = '4areia_auth_v1';
+let authSession = null;
+let modoEdicao = false;
 function podeEditar(){
   if(!modoEdicao){
-    alert('🔒 Modo somente visualização.\n\nToque no cadeado no topo do app e digite o código pra habilitar edição neste aparelho.');
+    alert('🔒 Modo somente visualização.\n\nToque no cadeado no topo do app e faça login pra habilitar edição neste aparelho.');
     return false;
   }
   return true;
 }
-function toggleModoEdicao(){
-  if(modoEdicao){
-    if(!confirm('Voltar pro modo somente visualização neste aparelho?')) return;
-    modoEdicao = false;
-    localStorage.removeItem('4areia_edit_unlocked');
-  }else{
-    const codigo = prompt('Digite o código de edição:');
-    if(codigo === null) return;
-    if(codigo === EDIT_PIN){
-      modoEdicao = true;
-      localStorage.setItem('4areia_edit_unlocked','1');
-    }else{
-      alert('Código incorreto.');
-      return;
-    }
+function loadAuthSession(){
+  try{
+    const raw = localStorage.getItem(AUTH_STORAGE);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
+}
+function saveAuthSession(s){
+  authSession = s;
+  try{
+    if(s) localStorage.setItem(AUTH_STORAGE, JSON.stringify(s));
+    else localStorage.removeItem(AUTH_STORAGE);
+  }catch(e){}
+  modoEdicao = !!s;
+}
+async function fazerLogin(email, senha){
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method:'POST',
+    headers:{ apikey: SUPABASE_ANON_KEY, 'Content-Type':'application/json' },
+    body: JSON.stringify({ email, password: senha })
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error_description || data.msg || 'Email ou senha incorretos');
+  saveAuthSession({ access_token:data.access_token, refresh_token:data.refresh_token, email });
+}
+async function renovarSessao(){
+  if(!authSession || !authSession.refresh_token) return false;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method:'POST',
+      headers:{ apikey: SUPABASE_ANON_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify({ refresh_token: authSession.refresh_token })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error('refresh falhou');
+    saveAuthSession({ access_token:data.access_token, refresh_token:data.refresh_token, email:authSession.email });
+    return true;
+  }catch(e){
+    saveAuthSession(null);
+    return false;
   }
+}
+function fazerLogout(){
+  saveAuthSession(null);
   atualizarBotaoEdicao();
   renderTudo(); renderUltimoSorteio();
   if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
   if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
+}
+async function trocarSenha(novaSenha){
+  if(!authSession) return;
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method:'PUT',
+    headers:{ apikey: SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({ password: novaSenha })
+  });
+  if(!res.ok){ const d = await res.json(); throw new Error(d.msg || d.error_description || 'Falha ao trocar senha'); }
+}
+function toggleModoEdicao(){
+  if(modoEdicao){
+    if(!confirm('Sair do modo edição neste aparelho?')) return;
+    fazerLogout();
+  }else{
+    abrirLogin();
+  }
+}
+function abrirLogin(){
+  document.getElementById('inLoginEmail').value = '';
+  document.getElementById('inLoginSenha').value = '';
+  document.getElementById('overlayLogin').classList.add('open');
+}
+function fecharLogin(){ document.getElementById('overlayLogin').classList.remove('open'); }
+async function enviarLogin(){
+  const email = document.getElementById('inLoginEmail').value.trim();
+  const senha = document.getElementById('inLoginSenha').value;
+  if(!email || !senha){ alert('Preencha email e senha.'); return; }
+  try{
+    await fazerLogin(email, senha);
+    fecharLogin();
+    atualizarBotaoEdicao();
+    renderTudo(); renderUltimoSorteio();
+    if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
+    if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
+  }catch(e){
+    alert('Não consegui entrar: '+e.message);
+  }
+}
+async function abrirTrocarSenha(){
+  const nova = prompt('Nova senha (mínimo 6 caracteres):');
+  if(!nova) return;
+  if(nova.length<6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  try{
+    await trocarSenha(nova);
+    alert('Senha alterada com sucesso!');
+  }catch(e){
+    alert('Erro ao trocar senha: '+e.message);
+  }
 }
 function atualizarBotaoEdicao(){
   const btn = document.getElementById('btnLock');
@@ -704,14 +796,20 @@ async function buscarDaNuvem(){
   return garantirCampos(rows[0].data);
 }
 async function enviarParaNuvem(){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1`, {
-    method:'PATCH',
-    headers: {
-      apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type':'application/json', Prefer:'return=minimal'
-    },
-    body: JSON.stringify({ data: state, updated_at: new Date().toISOString() })
-  });
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${authSession? authSession.access_token : SUPABASE_ANON_KEY}`,
+    'Content-Type':'application/json', Prefer:'return=minimal'
+  };
+  const body = JSON.stringify({ data: state, updated_at: new Date().toISOString() });
+  let res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1`, { method:'PATCH', headers, body });
+  if(res.status===401 && authSession){
+    const renovou = await renovarSessao();
+    if(renovou){
+      headers.Authorization = `Bearer ${authSession.access_token}`;
+      res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1`, { method:'PATCH', headers, body });
+    }
+  }
   if(!res.ok) throw new Error('Falha ao salvar na nuvem');
 }
 function persist(){
@@ -726,7 +824,20 @@ function persist(){
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function brl(v){ return 'R$ '+Number(v||0).toFixed(2).replace('.',','); }
-function abrirConfig(){ document.getElementById('overlayConfig').classList.add('open'); }
+function abrirConfig(){
+  const wrap = document.getElementById('contaLogada');
+  wrap.innerHTML = modoEdicao
+    ? `<div class="banco-card" style="margin-bottom:14px">👤 Logado como <b>${authSession.email}</b>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-ghost" style="flex:1" onclick="abrirTrocarSenha()">🔑 Trocar senha</button>
+          <button class="btn btn-danger" style="flex:1" onclick="fazerLogout();fecharConfig()">Sair</button>
+        </div>
+      </div>`
+    : `<div class="banco-card" style="margin-bottom:14px">🔒 Você está no modo somente visualização.
+        <button class="btn btn-gold btn-block" style="margin-top:10px" onclick="fecharConfig();abrirLogin()">Entrar como administrador</button>
+      </div>`;
+  document.getElementById('overlayConfig').classList.add('open');
+}
 function fecharConfig(){ document.getElementById('overlayConfig').classList.remove('open'); }
 function exportarDados(){
   const texto = JSON.stringify(state);
@@ -1594,6 +1705,11 @@ function renderUltimoSorteio(){
   }
 }
 async function iniciarApp(){
+  authSession = loadAuthSession();
+  modoEdicao = !!authSession;
+  atualizarBotaoEdicao();
+  if(authSession) renovarSessao().then(()=>{ atualizarBotaoEdicao(); renderAtletas(); });
+
   setSyncStatus('☁️ carregando...', 'sync-pending');
   const local = loadLocal();
   state = local;
