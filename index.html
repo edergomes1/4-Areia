@@ -1112,6 +1112,13 @@ function embaralhar(arr){
   }
   return arr;
 }
+function penalidadePosicao(time){
+  const cont = {};
+  time.forEach(a=>{ cont[a.pos] = (cont[a.pos]||0)+1; });
+  let pen = 0;
+  Object.values(cont).forEach(c=>{ if(c>1) pen += (c-1)*(c-1); });
+  return pen;
+}
 function sortear(){
   if(!podeEditar()) return;
   const pool = poolSorteio();
@@ -1124,58 +1131,72 @@ function sortear(){
   pool.forEach(a=>{ (porNivel[a.nivel] = porNivel[a.nivel]||[]).push(a); });
   const niveisOrdenados = Object.keys(porNivel).map(Number).sort((x,y)=>y-x);
 
-  // 2) dentro de cada nível empatado, intercala por gênero e depois por posição,
-  //    embaralhando quem empata em tudo — assim o resultado varia a cada sorteio
-  //    sem nunca furar o balanceamento por nível
+  // 2) dentro de cada nível, intercala por posição (round-robin) embaralhando quem
+  //    empata em tudo — isso espalha as posições ao longo da lista pra que, junto
+  //    com o sorteio em rodadas abaixo, jogadores da mesma posição não caiam
+  //    seguidos no mesmo time
   const ordenado = [];
   niveisOrdenados.forEach(nv=>{
-    const porGenero = {};
-    embaralhar([...porNivel[nv]]).forEach(a=>{ const g=a.genero||'M'; (porGenero[g]=porGenero[g]||[]).push(a); });
-    Object.values(porGenero).forEach(lista=>{
-      const porPos = {};
-      lista.forEach(a=>{ (porPos[a.pos]=porPos[a.pos]||[]).push(a); });
-      lista.length = 0;
-      let restaPos = true;
-      const posicoes = embaralhar(Object.keys(porPos));
-      while(restaPos){
-        restaPos = false;
-        for(const p of posicoes){ if(porPos[p].length){ lista.push(porPos[p].shift()); restaPos=true; } }
-      }
-    });
-    const generos = embaralhar(Object.keys(porGenero));
-    let restaGenero = true;
-    while(restaGenero){
-      restaGenero = false;
-      for(const g of generos){ if(porGenero[g].length){ ordenado.push(porGenero[g].shift()); restaGenero=true; } }
+    const porPos = {};
+    embaralhar([...porNivel[nv]]).forEach(a=>{ (porPos[a.pos]=porPos[a.pos]||[]).push(a); });
+    let restaPos = true;
+    const posicoes = embaralhar(Object.keys(porPos));
+    while(restaPos){
+      restaPos = false;
+      for(const p of posicoes){ if(porPos[p].length){ ordenado.push(porPos[p].shift()); restaPos=true; } }
     }
   });
 
-  // 3) distribui em zigue-zague, começando de um time aleatório (varia o resultado
-  //    entre resorteios, mas o zigue-zague continua garantindo nível equilibrado)
-  const times = Array.from({length:numTimes}, ()=>({ jogadores:[], nivelTotal:0 }));
+  // 3) sorteio em rodadas (serpentina de verdade): rodada par vai time 1→N,
+  //    rodada ímpar vai N→1. Cada time recebe exatamente 1 jogador por rodada —
+  //    corrige o bug antigo que dava 2 jogadores seguidos pro time da ponta
+  //    toda vez que a direção virava, o que gerava times acima/abaixo da média.
+  const ordemRodadas = [];
+  for(let r=0; r<porTime; r++){
+    const rodada = [];
+    for(let i=0;i<numTimes;i++) rodada.push(i);
+    if(r % 2 === 1) rodada.reverse();
+    ordemRodadas.push(...rodada);
+  }
+  // gira o início da sequência de rodadas (não o índice do time) pra variar
+  // o resultado entre sorteios sem quebrar o padrão de equilíbrio
+  const giro = Math.floor(Math.random()*porTime) * numTimes;
+  const ordemFinal = ordemRodadas.slice(giro).concat(ordemRodadas.slice(0, giro));
+
+  const times = Array.from({length:numTimes}, ()=>[]);
   const banco = [];
-  let dir = Math.random() < 0.5 ? 1 : -1;
-  let idx = Math.floor(Math.random()*numTimes);
-  ordenado.forEach(a=>{
-    let tentativas = 0;
-    while(times[idx].jogadores.length >= porTime && tentativas < numTimes){
-      idx += dir;
-      if(idx>=numTimes){ idx=numTimes-1; dir=-1; }
-      else if(idx<0){ idx=0; dir=1; }
-      tentativas++;
-    }
-    if(times[idx].jogadores.length < porTime){
-      times[idx].jogadores.push(a);
-      times[idx].nivelTotal += a.nivel;
-      idx += dir;
-      if(idx>=numTimes){ idx=numTimes-1; dir=-1; }
-      else if(idx<0){ idx=0; dir=1; }
-    }else{
-      banco.push(a);
-    }
+  ordenado.forEach((a,i)=>{
+    if(i < vagas) times[ordemFinal[i]].push(a);
+    else banco.push(a);
   });
 
-  const timesFinal = times.map(t=>t.jogadores);
+  // 4) ajuste fino: troca jogadores de MESMO nível (não mexe na média) entre
+  //    times pra reduzir empilhamento de posição, quando possível
+  for(let iter=0; iter<40; iter++){
+    let melhorou = false;
+    for(let i=0;i<times.length && !melhorou;i++){
+      for(let j=0;j<times.length && !melhorou;j++){
+        if(i===j) continue;
+        for(const jogA of times[i]){
+          for(const jogB of times[j]){
+            if(jogA.nivel !== jogB.nivel || jogA.pos === jogB.pos) continue;
+            const penalidadeAntes = penalidadePosicao(times[i]) + penalidadePosicao(times[j]);
+            const idxA = times[i].indexOf(jogA), idxB = times[j].indexOf(jogB);
+            times[i][idxA] = jogB; times[j][idxB] = jogA;
+            const penalidadeDepois = penalidadePosicao(times[i]) + penalidadePosicao(times[j]);
+            if(penalidadeDepois < penalidadeAntes){
+              melhorou = true;
+            }else{
+              times[i][idxA] = jogA; times[j][idxB] = jogB;
+            }
+          }
+        }
+      }
+    }
+    if(!melhorou) break;
+  }
+
+  const timesFinal = times;
   state.lastTeams = timesFinal.map(tm=>tm.map(a=>a.id));
   state.lastBanco = banco.map(a=>a.id);
   persist();
