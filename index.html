@@ -1119,6 +1119,11 @@ function penalidadePosicao(time){
   Object.values(cont).forEach(c=>{ if(c>1) pen += (c-1)*(c-1); });
   return pen;
 }
+function penalidadeGenero(time, alvoF){
+  const f = time.filter(a=>(a.genero||'M')==='F').length;
+  const d = f - alvoF;
+  return d*d;
+}
 function sortear(){
   if(!podeEditar()) return;
   const pool = poolSorteio();
@@ -1131,14 +1136,24 @@ function sortear(){
   pool.forEach(a=>{ (porNivel[a.nivel] = porNivel[a.nivel]||[]).push(a); });
   const niveisOrdenados = Object.keys(porNivel).map(Number).sort((x,y)=>y-x);
 
-  // 2) dentro de cada nível, intercala por posição (round-robin) embaralhando quem
-  //    empata em tudo — isso espalha as posições ao longo da lista pra que, junto
-  //    com o sorteio em rodadas abaixo, jogadores da mesma posição não caiam
-  //    seguidos no mesmo time
+  // 2) dentro de cada nível: agrupa por posição e, dentro de cada posição,
+  //    intercala por gênero — depois round-robin entre as posições. Isso já
+  //    nasce espalhado tanto por posição quanto por gênero.
   const ordenado = [];
   niveisOrdenados.forEach(nv=>{
     const porPos = {};
     embaralhar([...porNivel[nv]]).forEach(a=>{ (porPos[a.pos]=porPos[a.pos]||[]).push(a); });
+    Object.keys(porPos).forEach(p=>{
+      const porGen = {};
+      porPos[p].forEach(a=>{ const g=a.genero||'M'; (porGen[g]=porGen[g]||[]).push(a); });
+      porPos[p] = [];
+      let resta = true;
+      const gens = embaralhar(Object.keys(porGen));
+      while(resta){
+        resta = false;
+        for(const g of gens){ if(porGen[g].length){ porPos[p].push(porGen[g].shift()); resta=true; } }
+      }
+    });
     let restaPos = true;
     const posicoes = embaralhar(Object.keys(porPos));
     while(restaPos){
@@ -1170,20 +1185,25 @@ function sortear(){
     else banco.push(a);
   });
 
-  // 4) ajuste fino: troca jogadores de MESMO nível (não mexe na média) entre
-  //    times pra reduzir empilhamento de posição, quando possível
-  for(let iter=0; iter<40; iter++){
+  // 4) ajuste fino: troca jogadores de MESMO nível (não mexe na média de nenhum
+  //    time) entre times pra reduzir empilhamento de posição e desequilíbrio de
+  //    gênero, quando possível
+  const totalF = times.reduce((s,t)=>s + t.filter(a=>(a.genero||'M')==='F').length, 0);
+  const alvoF = totalF / numTimes;
+  function penalidadeTotal(t){ return penalidadePosicao(t) + penalidadeGenero(t, alvoF)*3; }
+  for(let iter=0; iter<60; iter++){
     let melhorou = false;
     for(let i=0;i<times.length && !melhorou;i++){
       for(let j=0;j<times.length && !melhorou;j++){
         if(i===j) continue;
         for(const jogA of times[i]){
           for(const jogB of times[j]){
-            if(jogA.nivel !== jogB.nivel || jogA.pos === jogB.pos) continue;
-            const penalidadeAntes = penalidadePosicao(times[i]) + penalidadePosicao(times[j]);
+            if(jogA.nivel !== jogB.nivel) continue;
+            if(jogA.pos === jogB.pos && (jogA.genero||'M') === (jogB.genero||'M')) continue;
+            const penalidadeAntes = penalidadeTotal(times[i]) + penalidadeTotal(times[j]);
             const idxA = times[i].indexOf(jogA), idxB = times[j].indexOf(jogB);
             times[i][idxA] = jogB; times[j][idxB] = jogA;
-            const penalidadeDepois = penalidadePosicao(times[i]) + penalidadePosicao(times[j]);
+            const penalidadeDepois = penalidadeTotal(times[i]) + penalidadeTotal(times[j]);
             if(penalidadeDepois < penalidadeAntes){
               melhorou = true;
             }else{
