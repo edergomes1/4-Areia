@@ -627,6 +627,18 @@
     <label class="field-label">Senha</label>
     <input type="password" id="inLoginSenha" placeholder="••••••••">
     <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="enviarLogin()">Entrar</button>
+    <button type="button" onclick="recuperarSenha()" style="background:none;border:none;color:var(--ink-soft);font-size:12.5px;text-decoration:underline;margin-top:12px;width:100%;text-align:center;padding:4px;">Esqueci minha senha</button>
+  </div>
+</div>
+
+<!-- MODAL REDEFINIR SENHA (veio do link de recuperação por email) -->
+<div class="overlay" id="overlayNovaSenha">
+  <div class="sheet">
+    <div class="sheet-head"><h3>🔑 Criar nova senha</h3></div>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">Você abriu o link de recuperação enviado por email. Defina sua nova senha abaixo.</p>
+    <label class="field-label">Nova senha (mínimo 6 caracteres)</label>
+    <input type="password" id="inNovaSenhaRecuperacao" placeholder="••••••••">
+    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="confirmarNovaSenhaRecuperacao()">Salvar nova senha</button>
   </div>
 </div>
 
@@ -730,6 +742,54 @@ function abrirLogin(){
   document.getElementById('overlayLogin').classList.add('open');
 }
 function fecharLogin(){ document.getElementById('overlayLogin').classList.remove('open'); }
+async function recuperarSenha(){
+  const email = document.getElementById('inLoginEmail').value.trim();
+  if(!email){ alert('Digite seu email no campo acima primeiro, depois toque em "Esqueci minha senha" de novo.'); return; }
+  try{
+    const redirect = window.location.origin + window.location.pathname;
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, {
+      method:'POST',
+      headers:{ apikey: SUPABASE_ANON_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.msg || d.error_description || 'Falha ao enviar email'); }
+    alert('Te mandamos um email com um link pra criar uma nova senha. Abra o link nesse mesmo celular ou computador.');
+    fecharLogin();
+  }catch(e){
+    alert('Não consegui enviar o email de recuperação: '+e.message);
+  }
+}
+let recoveryToken = null;
+function verificarLinkRecuperacao(){
+  const hash = window.location.hash;
+  if(!hash || !hash.includes('type=recovery')) return;
+  const params = new URLSearchParams(hash.slice(1));
+  const token = params.get('access_token');
+  if(token){
+    recoveryToken = token;
+    document.getElementById('inNovaSenhaRecuperacao').value = '';
+    document.getElementById('overlayNovaSenha').classList.add('open');
+  }
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+async function confirmarNovaSenhaRecuperacao(){
+  const nova = document.getElementById('inNovaSenhaRecuperacao').value;
+  if(!nova || nova.length<6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  try{
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method:'PUT',
+      headers:{ apikey: SUPABASE_ANON_KEY, Authorization:`Bearer ${recoveryToken}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ password: nova })
+    });
+    if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.msg || d.error_description || 'Falha ao salvar a nova senha'); }
+    recoveryToken = null;
+    document.getElementById('overlayNovaSenha').classList.remove('open');
+    alert('Senha redefinida com sucesso! Agora é só entrar com ela.');
+    abrirLogin();
+  }catch(e){
+    alert('Não consegui salvar a nova senha: '+e.message);
+  }
+}
 async function enviarLogin(){
   const email = document.getElementById('inLoginEmail').value.trim();
   const senha = document.getElementById('inLoginSenha').value;
@@ -1746,6 +1806,7 @@ function renderUltimoSorteio(){
   }
 }
 async function iniciarApp(){
+  verificarLinkRecuperacao();
   authSession = loadAuthSession();
   modoEdicao = !!authSession;
   atualizarBotaoEdicao();
