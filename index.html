@@ -746,14 +746,14 @@ async function recuperarSenha(){
   const email = document.getElementById('inLoginEmail').value.trim();
   if(!email){ alert('Digite seu email no campo acima primeiro, depois toque em "Esqueci minha senha" de novo.'); return; }
   try{
-    const redirect = window.location.origin + window.location.pathname;
+    const redirect = 'https://4-areia.vercel.app/';
     const res = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, {
       method:'POST',
       headers:{ apikey: SUPABASE_ANON_KEY, 'Content-Type':'application/json' },
       body: JSON.stringify({ email })
     });
     if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.msg || d.error_description || 'Falha ao enviar email'); }
-    alert('Te mandamos um email com um link pra criar uma nova senha. Abra o link nesse mesmo celular ou computador.');
+    alert('Te mandamos um email com um link pra criar uma nova senha. Abra o link assim que chegar e clique só uma vez — ele expira rápido.');
     fecharLogin();
   }catch(e){
     alert('Não consegui enviar o email de recuperação: '+e.message);
