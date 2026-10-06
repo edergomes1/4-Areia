@@ -483,6 +483,7 @@
       <label class="field-label">Valor da mensalidade</label>
       <input type="number" step="0.01" id="inValorMensalidade" oninput="onValorMensalidadeChange()">
       <div id="listaMensalidades" style="margin-top:8px"></div>
+      <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="compartilharCaixa()">📤 Compartilhar status do caixa</button>
     </div>
     <div class="card" id="listaTransacoes"></div>
   </section>
@@ -1314,21 +1315,21 @@ function renderTimes(times, banco, vagas, totalPool){
 }
 function compartilharTimes(){
   if(!state.lastTeams){ alert('Sorteie os times primeiro.'); return; }
-  let txt = '🏐 *4ª Areia - Times de hoje* 🌙\\n\\n';
+  let txt = '🏐 *4ª Areia - Times de hoje* 🌙\n\n';
   state.lastTeams.forEach((ids,i)=>{
-    txt += `*Time ${i+1}*\\n`;
+    txt += `*Time ${i+1}*\n`;
     ids.forEach(id=>{
       const a = state.athletes.find(x=>x.id===id);
-      if(a) txt += `• ${a.nome} (${a.pos})\\n`;
+      if(a) txt += `• ${a.nome} (${a.pos})\n`;
     });
-    txt += '\\n';
+    txt += '\n';
   });
   const banco = state.lastBanco||[];
   if(banco.length){
-    txt += '🪑 *Banco*\\n';
+    txt += '🪑 *Banco*\n';
     banco.forEach(id=>{
       const a = state.athletes.find(x=>x.id===id);
-      if(a) txt += `• ${a.nome}\\n`;
+      if(a) txt += `• ${a.nome}\n`;
     });
   }
   window.open('https://wa.me/?text='+encodeURIComponent(txt), '_blank');
@@ -1489,6 +1490,24 @@ function toggleMensalidade(mes, athleteId){
     state.mensalidades[mes][athleteId] = { pago:true, txId };
   }
   persist(); renderCaixa();
+}
+
+function compartilharCaixa(){
+  const mes = document.getElementById('mesMensalidade').value || mesAtualStr();
+  const reg = state.mensalidades[mes] || {};
+  const valor = state.valorMensalidade;
+  const mensalistas = state.athletes.filter(a=>(a.tipo||'mensalista')==='mensalista');
+  const pendentes = mensalistas.filter(a=>!(reg[a.id] && reg[a.id].pago));
+  const pagos = mensalistas.filter(a=>reg[a.id] && reg[a.id].pago);
+  const entradas = state.finance.filter(t=>t.tipo==='entrada').reduce((s,t)=>s+Number(t.valor),0);
+  const saidas = state.finance.filter(t=>t.tipo==='saida').reduce((s,t)=>s+Number(t.valor),0);
+  let txt = `🏐 *4ª Areia - Caixa ${mesLabel(mes)}*\n\n`;
+  txt += `💰 Saldo do caixa: *${brl(entradas-saidas)}*\n\n`;
+  txt += `🔴 *Pendentes (${pendentes.length})*\n`;
+  txt += pendentes.length ? pendentes.map(a=>`• ${a.nome}: -${brl(valor)}`).join('\n') : 'Ninguém pendente 🎉';
+  txt += `\n\n✅ *Pagos (${pagos.length})*\n`;
+  txt += pagos.length ? pagos.map(a=>`• ${a.nome}`).join('\n') : 'Ninguém pagou ainda';
+  window.open('https://wa.me/?text='+encodeURIComponent(txt), '_blank');
 }
 
 /* ---------------- EVENTOS ---------------- */
