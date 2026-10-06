@@ -412,7 +412,6 @@
   <div class="stat-strip">
     <div class="stat-chip"><div class="n" id="statAthletes">0</div><div class="l">Atletas</div></div>
     <div class="stat-chip"><div class="n" id="statBalance">R$0</div><div class="l">Caixa</div></div>
-    <div class="stat-chip"><div class="n" id="statToday">0</div><div class="l">Presença hoje</div></div>
     <div class="stat-chip"><div class="n" id="statDays">—</div><div class="l" id="statDaysLabel">Dias p/ evento</div></div>
     <div class="stat-chip"><div class="n" id="statAnos">—</div><div class="l">Anos de time</div></div>
   </div>
@@ -1363,8 +1362,6 @@ function renderPresenca(){
       </div>`;
     }).join('');
   }
-  const presentesHoje = Object.values(state.attendance[new Date().toISOString().slice(0,10)]||{}).filter(Boolean).length;
-  document.getElementById('statToday').textContent = presentesHoje;
 }
 function togglePresenca(data,id){
   if(!podeEditar()) return;
