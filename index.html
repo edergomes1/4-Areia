@@ -201,6 +201,7 @@
     color:var(--gold-light);display:flex;align-items:center;justify-content:center;
     font-weight:800;font-size:16px;border:2px solid var(--gold);
   }
+  .avatar.sm{width:32px;height:32px;font-size:12px;border-width:1.5px}
   .ath-info{flex:1;min-width:0}
   .ath-info .name{font-weight:700;font-size:14.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ath-meta{display:flex;align-items:center;gap:7px;margin-top:3px}
@@ -1465,6 +1466,7 @@ function renderMensalidades(){
     const registro = state.mensalidades[mes][a.id];
     const pago = registro && registro.pago;
     return `<div class="mensal-row">
+      ${avatarHtml(a,'sm')}
       <span class="mensal-nome">${a.nome}</span>
       <button class="mensal-toggle ${pago?'pago':''}" onclick="toggleMensalidade('${mes}','${a.id}')">${pago?'Pago ✓':'Pendente'}</button>
     </div>`;
@@ -1761,6 +1763,12 @@ function excluirEvento(){
 }
 
 /* ---------------- RANKING ---------------- */
+function avatarHtml(a, extra){
+  const cls = 'avatar' + (extra? ' '+extra : '');
+  return a.foto
+    ? `<img class="${cls}" src="${a.foto}" onerror="this.style.display='none'">`
+    : `<div class="${cls}">${a.nome.slice(0,2).toUpperCase()}</div>`;
+}
 function renderRanking(){
   const counts = state.athletes.map(a=>{
     let n=0;
@@ -1779,7 +1787,7 @@ function renderRanking(){
   podio.innerHTML = order.map(i=>{
     const a = top3[i];
     return `<div class="pod-item pod-${i+1}">
-      <div class="avatar">${a.nome.slice(0,2).toUpperCase()}</div>
+      ${avatarHtml(a)}
       <div style="font-size:12px;font-weight:700">${a.nome}</div>
       <div class="pod-bar">${a.presencas}</div>
     </div>`;
@@ -1787,6 +1795,7 @@ function renderRanking(){
   resto.innerHTML = counts.map((a,i)=>`
     <div class="rank-row">
       <div class="rank-num">${i+1}º</div>
+      ${avatarHtml(a,'sm')}
       <div class="rank-name">${a.nome}</div>
       <div class="rank-count">${a.presencas} presenças</div>
     </div>`).join('');
