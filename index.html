@@ -111,7 +111,7 @@
     padding:12px 16px; min-width:118px; flex-shrink:0;
   }
   .stat-chip .n{font-size:20px;font-weight:800;color:var(--navy-900)}
-  .stat-chip .l{font-size:10.5px;color:var(--ink-soft);letter-spacing:.4px;text-transform:uppercase;font-weight:600}
+  .stat-chip .l{font-size:10.5px;color:var(--ink-soft);letter-spacing:.4px;text-transform:uppercase;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   nav.tabbar{
     position:fixed; left:0; right:0; bottom:0; z-index:50;
     background:var(--navy-950);
@@ -413,7 +413,7 @@
     <div class="stat-chip"><div class="n" id="statAthletes">0</div><div class="l">Atletas</div></div>
     <div class="stat-chip"><div class="n" id="statBalance">R$0</div><div class="l">Caixa</div></div>
     <div class="stat-chip"><div class="n" id="statToday">0</div><div class="l">Presença hoje</div></div>
-    <div class="stat-chip"><div class="n" id="statDays">—</div><div class="l">Dias p/ festa</div></div>
+    <div class="stat-chip"><div class="n" id="statDays">—</div><div class="l" id="statDaysLabel">Dias p/ evento</div></div>
     <div class="stat-chip"><div class="n" id="statAnos">—</div><div class="l">Anos de time</div></div>
   </div>
 
@@ -1556,6 +1556,7 @@ function diasParaEvento(dataStr){
   return Math.round((alvo-hoje)/86400000);
 }
 function renderEventos(){
+  renderCountdown();
   const wrap = document.getElementById('listaEventos');
   document.getElementById('countEventos').textContent = state.eventos.length;
   if(!state.eventos.length){
@@ -1778,11 +1779,19 @@ function renderRanking(){
 /* ---------------- CONTAGEM PARA A FESTA ---------------- */
 function renderCountdown(){
   const hoje = new Date();
-  let ano = hoje.getFullYear();
-  let alvo = new Date(ano,9,10); // 10 de outubro
-  if(alvo < hoje) alvo = new Date(ano+1,9,10);
-  const dias = Math.ceil((alvo-hoje)/86400000);
-  document.getElementById('statDays').textContent = dias;
+  // próximo evento cadastrado (hoje ou futuro)
+  const proximos = (state.eventos||[])
+    .map(e=>({e, d: diasParaEvento(e.data)}))
+    .filter(x=>x.d!==null && x.d>=0)
+    .sort((a,b)=>a.d-b.d);
+  const lbl = document.getElementById('statDaysLabel');
+  if(proximos.length){
+    document.getElementById('statDays').textContent = proximos[0].d;
+    lbl.textContent = 'Dias p/ ' + proximos[0].e.nome;
+  }else{
+    document.getElementById('statDays').textContent = '—';
+    lbl.textContent = 'Sem evento';
+  }
 
   // fundação do time: 28/09/2021 — conta os anos completos e avisa o aniversário
   const FUNDACAO = new Date(2021,8,28); // mês 8 = setembro
