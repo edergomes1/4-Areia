@@ -123,7 +123,7 @@
     background:none;border:0;color:rgba(255,255,255,.55);
     display:flex;flex-direction:column;align-items:center;gap:3px;
     font-family:'Poppins',sans-serif; font-size:9.5px; font-weight:600;
-    padding:4px 6px; border-radius:10px; cursor:pointer; position:relative;
+    padding:4px 2px; flex:1; min-width:0; border-radius:10px; cursor:pointer; position:relative;
     letter-spacing:.2px;
   }
   nav.tabbar button .ic{font-size:19px;line-height:1}
@@ -161,12 +161,13 @@
     color:var(--navy-950); font-size:26px; border:0; box-shadow:0 10px 22px -6px rgba(224,162,0,.6);
     cursor:pointer;
   }
-  input,select{
+  input,select,textarea{
     width:100%; padding:11px 12px; margin:6px 0; border-radius:10px;
     border:1.5px solid var(--sand-dark); font-family:'Poppins',sans-serif; font-size:14px;
     background:var(--sand); color:var(--ink);
   }
-  input:focus,select:focus{outline:2px solid var(--gold); border-color:var(--gold)}
+  textarea{resize:vertical;margin:6px 0}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--gold); border-color:var(--gold)}
   label.field-label{font-size:11.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.4px;margin-top:8px;display:block}
   .chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
   .chip-opt{
@@ -341,6 +342,25 @@
   .tx-val{font-weight:800;font-size:14px}
   .tx-val.in{color:var(--success)}
   .tx-val.out{color:var(--danger)}
+
+  /* ---------- TORNEIO ---------- */
+  .tabela-wrap{overflow-x:auto}
+  table.classif{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+  table.classif th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);text-align:center;padding:6px 4px}
+  table.classif td{text-align:center;padding:8px 4px;border-top:1px solid var(--sand-dark)}
+  table.classif td.tm,table.classif th.tm{text-align:left;font-weight:700}
+  table.classif td.pts{font-weight:800;color:var(--navy-900)}
+  table.classif tr.lider td{background:rgba(224,162,0,.14)}
+  .jogo-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--sand-dark);font-size:13px}
+  .jogo-row .tm{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .jogo-row .tm.dir{text-align:right}
+  .jogo-row input{width:46px;padding:7px 4px;text-align:center;margin:0}
+  .rodada-tit{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);margin:14px 0 2px}
+  /* ---------- FOTOS ---------- */
+  .foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .foto-grid .th{aspect-ratio:1;border:0;padding:0;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--sand-dark)}
+  .foto-grid .th img{width:100%;height:100%;object-fit:cover;display:block}
+  #fotoViewImg{width:100%;max-height:60vh;object-fit:contain;border-radius:12px;background:var(--navy-950)}
   /* ---------- RANKING ---------- */
   .podium{display:flex;align-items:flex-end;gap:8px;justify-content:center;margin-bottom:18px}
   .pod-item{text-align:center;flex:1;max-width:110px}
@@ -501,6 +521,19 @@
     <div class="section-title"><h2>🎉 Eventos</h2><span class="pill-count" id="countEventos">0</span></div>
     <div id="listaEventos"></div>
   </section>
+  <!-- TAB: TORNEIO -->
+  <section class="tab" id="tab-torneio">
+    <div class="section-title"><h2>🥇 Torneio 4ª Areia</h2><span class="pill-count" id="countTorneios">0</span></div>
+    <div id="listaTorneios"></div>
+  </section>
+
+  <!-- TAB: FOTOS -->
+  <section class="tab" id="tab-fotos">
+    <div class="section-title"><h2>📸 Fotos</h2><span class="pill-count" id="countFotos">0</span></div>
+    <div id="fotosAcoes"></div>
+    <input type="file" id="inFotosTime" accept="image/*" multiple style="display:none" onchange="enviarFotos(this.files)">
+    <div class="foto-grid" id="fotoGrid"></div>
+  </section>
 </main>
 
 <button class="fab" id="fabAdd" onclick="abrirModalAtleta()">+</button>
@@ -517,12 +550,50 @@
   <button data-tab="caixa" onclick="trocarTab('caixa')"><span class="ic">💰</span>Caixa</button>
   <button data-tab="ranking" onclick="trocarTab('ranking')"><span class="ic">🏆</span>Ranking</button>
   <button data-tab="eventos" onclick="trocarTab('eventos')"><span class="ic">🎉</span>Eventos</button>
+  <button data-tab="torneio" onclick="trocarTab('torneio')"><span class="ic">🥇</span>Torneio</button>
+  <button data-tab="fotos" onclick="trocarTab('fotos')"><span class="ic">📸</span>Fotos</button>
 </nav>
 
 <div id="installBanner">
   <span>Instale o app 4ª Areia na tela inicial pra acessar mais rápido 🌙</span>
   <button class="btn btn-gold" id="btnInstall" style="padding:8px 12px;font-size:12px">Instalar</button>
   <button class="icon-btn" onclick="dismissInstall()" style="color:#fff">✕</button>
+</div>
+
+<!-- MODAL TORNEIO -->
+<div class="overlay" id="overlayTorneio">
+  <div class="sheet">
+    <div class="sheet-head"><h3>Novo campeonato</h3><button class="sheet-close" onclick="fecharModalTorneio()">✕</button></div>
+    <label class="field-label">Nome do campeonato</label>
+    <input id="inTorneioNome" placeholder="Ex: Copa 4ª Areia 2026">
+    <label class="field-label">Data de início</label>
+    <input type="date" id="inTorneioData">
+    <label class="field-label">Times (um por linha, mínimo 2)</label>
+    <textarea id="inTorneioTimes" rows="6" placeholder="Time Azul&#10;Time Amarelo&#10;Time Branco"></textarea>
+    <label class="field-label">Formato</label>
+    <div class="chip-row" id="torneioFormatoChips"></div>
+    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="salvarTorneio()">Criar campeonato</button>
+  </div>
+</div>
+
+<!-- SHEET DETALHE DO TORNEIO -->
+<div class="overlay" id="overlayTorneioDetalhe">
+  <div class="sheet" style="max-height:90vh;overflow:auto">
+    <div class="sheet-head"><h3 id="torneioDetTitulo">Campeonato</h3><button class="sheet-close" onclick="fecharDetalheTorneio()">✕</button></div>
+    <div id="torneioDetBody"></div>
+  </div>
+</div>
+
+<!-- VISUALIZADOR DE FOTO -->
+<div class="overlay" id="overlayFoto">
+  <div class="sheet" style="max-height:92vh;overflow:auto">
+    <div class="sheet-head"><h3>Foto</h3><button class="sheet-close" onclick="fecharFoto()">✕</button></div>
+    <img id="fotoViewImg" alt="">
+    <label class="field-label">Legenda</label>
+    <input id="inFotoLegenda" placeholder="Ex: Churrasco de fim de ano" onchange="salvarLegendaFoto()">
+    <div id="fotoViewMeta" style="font-size:12px;color:var(--ink-soft);margin-top:6px"></div>
+    <button class="btn btn-danger btn-block" id="btnExcluirFoto" style="margin-top:8px" onclick="excluirFoto()">🗑️ Excluir foto</button>
+  </div>
 </div>
 
 <!-- MODAL ATLETA -->
@@ -720,6 +791,8 @@ function fazerLogout(){
   renderTudo(); renderUltimoSorteio();
   if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
   if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
+  if(document.getElementById('tab-torneio').classList.contains('active')) renderTorneios();
+  if(document.getElementById('tab-fotos').classList.contains('active')) renderFotos();
 }
 async function trocarSenha(novaSenha){
   if(!authSession) return;
@@ -803,6 +876,8 @@ async function enviarLogin(){
     renderTudo(); renderUltimoSorteio();
     if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
     if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
+  if(document.getElementById('tab-torneio').classList.contains('active')) renderTorneios();
+  if(document.getElementById('tab-fotos').classList.contains('active')) renderFotos();
   }catch(e){
     alert('Não consegui entrar: '+e.message);
   }
@@ -824,7 +899,7 @@ function atualizarBotaoEdicao(){
 }
 
 function defaultState(){
-  return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}, escala10:true};
+  return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}, torneios:[], fotos:[], escala10:true};
 }
 function garantirCampos(s){
   if(!s.escala10){
@@ -835,6 +910,8 @@ function garantirCampos(s){
   if(!s.mensalidades) s.mensalidades = {};
   if(!s.valorMensalidade) s.valorMensalidade = 50;
   if(!s.eventos) s.eventos = [];
+  if(!s.torneios) s.torneios = [];
+  if(!s.fotos) s.fotos = [];
   if(!s.participacoes) s.participacoes = {};
   return s;
 }
@@ -957,6 +1034,8 @@ function trocarTab(tab){
   if(tab==='caixa') renderCaixa();
   if(tab==='ranking') renderRanking();
   if(tab==='eventos') renderEventos();
+  if(tab==='torneio') renderTorneios();
+  if(tab==='fotos') renderFotos();
 }
 
 /* ---------------- ATLETAS ---------------- */
@@ -1799,6 +1878,216 @@ function renderRanking(){
       <div class="rank-name">${a.nome}</div>
       <div class="rank-count">${a.presencas} presenças</div>
     </div>`).join('');
+}
+
+
+/* ---------------- TORNEIO ---------------- */
+function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let torneioFormatoSel = 'ida', torneioDetalheId = null;
+function renderTorneioFormatoChips(){
+  document.getElementById('torneioFormatoChips').innerHTML = [['ida','Só ida'],['idavolta','Ida e volta']].map(([id,l])=>
+    `<div class="chip-opt ${id===torneioFormatoSel?'sel':''}" onclick="torneioFormatoSel='${id}';renderTorneioFormatoChips()">${l}</div>`).join('');
+}
+function abrirModalTorneio(){
+  if(!podeEditar()) return;
+  document.getElementById('inTorneioNome').value='';
+  document.getElementById('inTorneioData').value=new Date().toISOString().slice(0,10);
+  document.getElementById('inTorneioTimes').value='';
+  torneioFormatoSel='ida'; renderTorneioFormatoChips();
+  document.getElementById('overlayTorneio').classList.add('open');
+}
+function fecharModalTorneio(){ document.getElementById('overlayTorneio').classList.remove('open'); }
+function gerarJogos(times, idaVolta){
+  // método do círculo: todos contra todos, em rodadas
+  const ids = times.map(t=>t.id);
+  if(ids.length%2) ids.push(null);
+  const n = ids.length, jogos = [];
+  let arr = ids.slice();
+  for(let r=0;r<n-1;r++){
+    for(let i=0;i<n/2;i++){
+      const a = arr[i], b = arr[n-1-i];
+      if(a && b) jogos.push({id:uid(), rodada:r+1, a, b, pa:null, pb:null});
+    }
+    arr = [arr[0], arr[n-1], ...arr.slice(1,n-1)];
+  }
+  if(idaVolta){
+    const base = jogos.length ? Math.max(...jogos.map(j=>j.rodada)) : 0;
+    jogos.slice().forEach(j=> jogos.push({id:uid(), rodada:j.rodada+base, a:j.b, b:j.a, pa:null, pb:null}));
+  }
+  return jogos;
+}
+function salvarTorneio(){
+  if(!podeEditar()) return;
+  const nome = document.getElementById('inTorneioNome').value.trim();
+  const nomes = document.getElementById('inTorneioTimes').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!nome){ alert('Dê um nome ao campeonato.'); return; }
+  if(nomes.length<2){ alert('Informe pelo menos 2 times, um por linha.'); return; }
+  const times = nomes.map(n=>({id:uid(), nome:n}));
+  state.torneios.push({ id:uid(), nome, data:document.getElementById('inTorneioData').value, formato:torneioFormatoSel, times, jogos:gerarJogos(times, torneioFormatoSel==='idavolta') });
+  persist(); fecharModalTorneio(); renderTorneios();
+  abrirDetalheTorneio(state.torneios[state.torneios.length-1].id);
+}
+function classificacao(t){
+  const m = {}; t.times.forEach(x=>{ m[x.id]={id:x.id,nome:x.nome,j:0,v:0,d:0,pp:0,pc:0,pts:0}; });
+  t.jogos.forEach(j=>{
+    if(j.pa==null||j.pb==null) return;
+    const A=m[j.a], B=m[j.b]; if(!A||!B) return;
+    A.j++; B.j++; A.pp+=j.pa; A.pc+=j.pb; B.pp+=j.pb; B.pc+=j.pa;
+    if(j.pa>j.pb){ A.v++; B.d++; A.pts+=3; } else if(j.pb>j.pa){ B.v++; A.d++; B.pts+=3; }
+    else { A.pts+=1; B.pts+=1; }
+  });
+  return Object.values(m).sort((x,y)=> y.pts-x.pts || (y.pp-y.pc)-(x.pp-x.pc) || y.pp-x.pp || x.nome.localeCompare(y.nome));
+}
+function renderTorneios(){
+  document.getElementById('countTorneios').textContent = state.torneios.length;
+  const wrap = document.getElementById('listaTorneios');
+  const lista = [...state.torneios].reverse();
+  wrap.innerHTML = (modoEdicao? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="abrirModalTorneio()">+ Novo campeonato</button>` : '') +
+    (lista.length ? lista.map(t=>{
+      const feitos = t.jogos.filter(j=>j.pa!=null&&j.pb!=null).length;
+      const lider = feitos ? classificacao(t)[0] : null;
+      const dataFmt = t.data ? t.data.split('-').reverse().join('/') : 'Sem data';
+      return `<div class="evento-card" onclick="abrirDetalheTorneio('${t.id}')">
+        <div style="font-weight:800;font-size:15px">${esc(t.nome)}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">${dataFmt} · ${t.times.length} times · ${feitos}/${t.jogos.length} jogos</div>
+        ${lider? `<div style="font-size:12.5px;margin-top:6px">🥇 Líder: <b>${esc(lider.nome)}</b> (${lider.pts} pts)</div>` : ''}
+      </div>`;
+    }).join('') : `<div class="empty"><span>🥇</span>Nenhum campeonato criado ainda.${modoEdicao?'':' Entre como administrador para criar.'}</div>`);
+}
+function abrirDetalheTorneio(id){
+  torneioDetalheId = id; renderDetalheTorneio();
+  document.getElementById('overlayTorneioDetalhe').classList.add('open');
+}
+function fecharDetalheTorneio(){ document.getElementById('overlayTorneioDetalhe').classList.remove('open'); renderTorneios(); }
+function renderDetalheTorneio(){
+  const t = state.torneios.find(x=>x.id===torneioDetalheId); if(!t) return;
+  document.getElementById('torneioDetTitulo').textContent = t.nome;
+  const nome = id=> esc((t.times.find(x=>x.id===id)||{}).nome||'?');
+  const tab = classificacao(t);
+  const todosFeitos = t.jogos.length && t.jogos.every(j=>j.pa!=null&&j.pb!=null);
+  let h = todosFeitos ? `<div class="banco-card" style="margin-bottom:12px">🏆 Campeão: <b>${esc(tab[0].nome)}</b></div>` : '';
+  h += `<div class="tabela-wrap"><table class="classif"><tr><th>#</th><th class="tm">Time</th><th>J</th><th>V</th><th>D</th><th>PP</th><th>PC</th><th>SP</th><th>Pts</th></tr>` +
+    tab.map((r,i)=>`<tr class="${i===0&&r.j?'lider':''}"><td>${i+1}</td><td class="tm">${esc(r.nome)}</td><td>${r.j}</td><td>${r.v}</td><td>${r.d}</td><td>${r.pp}</td><td>${r.pc}</td><td>${r.pp-r.pc}</td><td class="pts">${r.pts}</td></tr>`).join('') + `</table></div>`;
+  h += `<div style="font-size:11px;color:var(--ink-soft);margin-top:6px">V = 3 pts, empate = 1, derrota = 0. PP/PC = pontos pró/contra, SP = saldo.</div>`;
+  const rodadas = [...new Set(t.jogos.map(j=>j.rodada))].sort((a,b)=>a-b);
+  rodadas.forEach(r=>{
+    h += `<div class="rodada-tit">Rodada ${r}</div>`;
+    t.jogos.filter(j=>j.rodada===r).forEach(j=>{
+      const val = v=> v==null?'':v;
+      h += modoEdicao
+        ? `<div class="jogo-row"><span class="tm dir">${nome(j.a)}</span>
+            <input type="number" inputmode="numeric" min="0" value="${val(j.pa)}" onchange="salvarPlacar('${j.id}','pa',this.value)">
+            <span>x</span>
+            <input type="number" inputmode="numeric" min="0" value="${val(j.pb)}" onchange="salvarPlacar('${j.id}','pb',this.value)">
+            <span class="tm">${nome(j.b)}</span></div>`
+        : `<div class="jogo-row"><span class="tm dir">${nome(j.a)}</span><b>${j.pa==null?'-':j.pa} x ${j.pb==null?'-':j.pb}</b><span class="tm">${nome(j.b)}</span></div>`;
+    });
+  });
+  if(modoEdicao) h += `<button class="btn btn-danger btn-block" style="margin-top:16px" onclick="excluirTorneio()">🗑️ Excluir campeonato</button>`;
+  document.getElementById('torneioDetBody').innerHTML = h;
+}
+function salvarPlacar(jogoId, lado, valor){
+  if(!podeEditar()) return;
+  const t = state.torneios.find(x=>x.id===torneioDetalheId); if(!t) return;
+  const j = t.jogos.find(x=>x.id===jogoId); if(!j) return;
+  j[lado] = valor==='' ? null : Math.max(0, parseInt(valor,10)||0);
+  persist(); renderDetalheTorneio();
+}
+function excluirTorneio(){
+  if(!podeEditar()) return;
+  if(!confirm('Excluir este campeonato e todos os placares?')) return;
+  state.torneios = state.torneios.filter(x=>x.id!==torneioDetalheId);
+  persist(); fecharDetalheTorneio();
+}
+
+/* ---------------- FOTOS (Supabase Storage) ---------------- */
+let fotoAbertaId = null;
+function urlFoto(path){ return `${SUPABASE_URL}/storage/v1/object/public/fotos/${path}`; }
+function renderFotos(){
+  document.getElementById('countFotos').textContent = state.fotos.length;
+  document.getElementById('fotosAcoes').innerHTML = modoEdicao
+    ? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="document.getElementById('inFotosTime').click()">+ Adicionar fotos</button>` : '';
+  const grid = document.getElementById('fotoGrid');
+  if(!state.fotos.length){
+    grid.style.display='block';
+    grid.innerHTML = `<div class="empty"><span>📸</span>Nenhuma foto ainda.${modoEdicao?'':' Entre como administrador para adicionar.'}</div>`;
+    return;
+  }
+  grid.style.display='';
+  grid.innerHTML = [...state.fotos].reverse().map(f=>
+    `<button class="th" onclick="abrirFoto('${f.id}')"><img loading="lazy" src="${urlFoto(f.path)}" alt="${esc(f.legenda||'Foto do time')}"></button>`).join('');
+}
+function reduzirImagem(file, max=1600, q=0.82){
+  return new Promise((resolve,reject)=>{
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const k = Math.min(1, max/Math.max(img.width,img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b=> b? resolve(b) : reject(new Error('Falha ao processar a imagem')), 'image/jpeg', q);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Imagem inválida')); };
+    img.src = url;
+  });
+}
+async function enviarFotos(files){
+  if(!podeEditar()){ document.getElementById('inFotosTime').value=''; return; }
+  const lista = Array.from(files||[]);
+  if(!lista.length) return;
+  const btn = document.querySelector('#fotosAcoes button');
+  let ok = 0, falhas = 0;
+  for(let i=0;i<lista.length;i++){
+    if(btn) btn.textContent = `Enviando ${i+1} de ${lista.length}...`;
+    try{
+      const blob = await reduzirImagem(lista[i]);
+      const path = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
+      let res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${path}`, {
+        method:'POST', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'image/jpeg' }, body: blob
+      });
+      if(res.status===401 || res.status===400){
+        if(await renovarSessao()){
+          res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${path}`, {
+            method:'POST', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'image/jpeg' }, body: blob });
+        }
+      }
+      if(!res.ok) throw new Error('upload');
+      state.fotos.push({ id:uid(), path, legenda:'', data:new Date().toISOString().slice(0,10) });
+      ok++;
+    }catch(e){ falhas++; }
+  }
+  document.getElementById('inFotosTime').value='';
+  if(ok) persist();
+  renderFotos();
+  if(falhas) alert(`${falhas} foto(s) não foram enviadas. Confira a conexão e se você está logado como administrador.`);
+}
+function abrirFoto(id){
+  const f = state.fotos.find(x=>x.id===id); if(!f) return;
+  fotoAbertaId = id;
+  document.getElementById('fotoViewImg').src = urlFoto(f.path);
+  const leg = document.getElementById('inFotoLegenda');
+  leg.value = f.legenda||''; leg.disabled = !modoEdicao;
+  document.getElementById('fotoViewMeta').textContent = f.data ? 'Adicionada em '+f.data.split('-').reverse().join('/') : '';
+  document.getElementById('btnExcluirFoto').style.display = modoEdicao? '' : 'none';
+  document.getElementById('overlayFoto').classList.add('open');
+}
+function fecharFoto(){ document.getElementById('overlayFoto').classList.remove('open'); }
+function salvarLegendaFoto(){
+  if(!podeEditar()) return;
+  const f = state.fotos.find(x=>x.id===fotoAbertaId); if(!f) return;
+  f.legenda = document.getElementById('inFotoLegenda').value.trim();
+  persist(); renderFotos();
+}
+async function excluirFoto(){
+  if(!podeEditar()) return;
+  const f = state.fotos.find(x=>x.id===fotoAbertaId); if(!f) return;
+  if(!confirm('Excluir esta foto?')) return;
+  try{
+    await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${f.path}`, { method:'DELETE', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}` } });
+  }catch(e){}
+  state.fotos = state.fotos.filter(x=>x.id!==f.id);
+  persist(); fecharFoto(); renderFotos();
 }
 
 /* ---------------- CONTAGEM PARA A FESTA ---------------- */
