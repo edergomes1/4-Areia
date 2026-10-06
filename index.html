@@ -562,16 +562,22 @@
 
 <!-- MODAL TORNEIO -->
 <div class="overlay" id="overlayTorneio">
-  <div class="sheet">
+  <div class="sheet" style="max-height:92vh;overflow:auto">
     <div class="sheet-head"><h3>Novo campeonato</h3><button class="sheet-close" onclick="fecharModalTorneio()">✕</button></div>
     <label class="field-label">Nome do campeonato</label>
     <input id="inTorneioNome" placeholder="Ex: Copa 4ª Areia 2026">
     <label class="field-label">Data de início</label>
     <input type="date" id="inTorneioData">
-    <label class="field-label">Times (um por linha, mínimo 2)</label>
-    <textarea id="inTorneioTimes" rows="6" placeholder="Time Azul&#10;Time Amarelo&#10;Time Branco"></textarea>
-    <label class="field-label">Formato</label>
-    <div class="chip-row" id="torneioFormatoChips"></div>
+    <label class="field-label">Times (um por linha, de 4 a 16)</label>
+    <textarea id="inTorneioTimes" rows="6" placeholder="Time Azul&#10;Time Amarelo&#10;Time Branco&#10;Time Areia" oninput="renderTorneioOpcoes()"></textarea>
+    <div id="torneioContagem" style="font-size:12px;color:var(--ink-soft)"></div>
+    <label class="field-label">Fase classificatória</label>
+    <div class="chip-row" id="torneioGruposChips"></div>
+    <div class="chip-row" id="torneioVoltaChips" style="margin-top:6px"></div>
+    <label class="field-label">Fase final (mata-mata)</label>
+    <div class="chip-row" id="torneioKChips"></div>
+    <div class="chip-row" id="torneioTercChips" style="margin-top:6px"></div>
+    <div id="torneioResumo" class="banco-card" style="margin-top:12px;font-size:12.5px"></div>
     <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="salvarTorneio()">Criar campeonato</button>
   </div>
 </div>
@@ -1883,21 +1889,61 @@ function renderRanking(){
 
 /* ---------------- TORNEIO ---------------- */
 function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-let torneioFormatoSel = 'ida', torneioDetalheId = null;
-function renderTorneioFormatoChips(){
-  document.getElementById('torneioFormatoChips').innerHTML = [['ida','Só ida'],['idavolta','Ida e volta']].map(([id,l])=>
-    `<div class="chip-opt ${id===torneioFormatoSel?'sel':''}" onclick="torneioFormatoSel='${id}';renderTorneioFormatoChips()">${l}</div>`).join('');
+const NOME_FASE = {2:'Final', 4:'Semifinais', 8:'Quartas de final', 16:'Oitavas de final'};
+const LETRAS = ['A','B','C','D'];
+let tn = {grupos:1, k:0, volta:false, terc:false, ultimoN:-1}, torneioDetalheId = null;
+
+function gruposValidos(n){ const r=[]; for(let g=1;g<=4;g++){ if(g===1 || Math.floor(n/g)>=3) r.push(g); } return r; }
+function kValidos(n,g){ return [0,2,4,8,16].filter(k=> k===0 || (k<=n && k>=g)); }
+function nomesTorneio(){ return document.getElementById('inTorneioTimes').value.split('\n').map(x=>x.trim()).filter(Boolean); }
+function renderTorneioOpcoes(){
+  const n = nomesTorneio().length;
+  const ok = n>=4 && n<=16;
+  document.getElementById('torneioContagem').textContent = n+' time'+(n===1?'':'s')+(ok?'':' (informe de 4 a 16)');
+  const chipsG = document.getElementById('torneioGruposChips'), chipsK = document.getElementById('torneioKChips');
+  if(!ok){
+    chipsG.innerHTML = chipsK.innerHTML = '<span style="font-size:12px;color:var(--ink-soft)">Informe de 4 a 16 times para ver as opções.</span>';
+    document.getElementById('torneioVoltaChips').innerHTML = document.getElementById('torneioTercChips').innerHTML = '';
+    document.getElementById('torneioResumo').textContent = '';
+    tn.ultimoN = -1; return;
+  }
+  const gv = gruposValidos(n);
+  if(tn.ultimoN !== n){
+    let g = n<=5 ? 1 : Math.min(4, Math.ceil(n/5));
+    if(!gv.includes(g)) g = gv[gv.length-1];
+    tn.grupos = g; tn.k = n<=3?0 : n<=7?4 : 8; tn.ultimoN = n;
+  }
+  if(!gv.includes(tn.grupos)) tn.grupos = gv[gv.length-1];
+  let kv = kValidos(n, tn.grupos);
+  if(!kv.includes(tn.k)) tn.k = kv.filter(x=>x<=tn.k).pop() ?? kv[0];
+  if(tn.k < 4) tn.terc = false;
+  const tam = g=>{ const a=Math.ceil(n/g), b=Math.floor(n/g); return a===b? a+' por grupo' : b+'-'+a+' por grupo'; };
+  chipsG.innerHTML = gv.map(g=>`<div class="chip-opt ${g===tn.grupos?'sel':''}" onclick="tn.grupos=${g};renderTorneioOpcoes()">${g===1?'Grupo único':g+' grupos'} <small>(${tam(g)})</small></div>`).join('');
+  document.getElementById('torneioVoltaChips').innerHTML = [[false,'Só ida'],[true,'Ida e volta']].map(([v,l])=>
+    `<div class="chip-opt ${v===tn.volta?'sel':''}" onclick="tn.volta=${v};renderTorneioOpcoes()">${l}</div>`).join('');
+  const nomeK = {0:'Sem mata-mata',2:'Final',4:'Semifinais',8:'Quartas',16:'Oitavas'};
+  chipsK.innerHTML = kv.map(k=>`<div class="chip-opt ${k===tn.k?'sel':''}" onclick="tn.k=${k};renderTorneioOpcoes()">${nomeK[k]}</div>`).join('');
+  document.getElementById('torneioTercChips').innerHTML = tn.k>=4
+    ? [[false,'Sem 3º lugar'],[true,'Com disputa de 3º lugar']].map(([v,l])=>`<div class="chip-opt ${v===tn.terc?'sel':''}" onclick="tn.terc=${v};renderTorneioOpcoes()">${l}</div>`).join('') : '';
+  const jg = contarJogosGrupos(n, tn.grupos, tn.volta);
+  document.getElementById('torneioResumo').innerHTML = `${jg} jogos na fase classificatória`
+    + (tn.k? ` + ${tn.k-1+(tn.terc?1:0)} no mata-mata. Classificam <b>${tn.k}</b> de ${n} times.` : '. Sem fase final.');
+}
+function contarJogosGrupos(n,g,volta){
+  let tot=0; for(let i=0;i<g;i++){ const m = Math.floor(n/g)+(i<n%g?1:0); tot += m*(m-1)/2; }
+  return tot*(volta?2:1);
 }
 function abrirModalTorneio(){
   if(!podeEditar()) return;
   document.getElementById('inTorneioNome').value='';
   document.getElementById('inTorneioData').value=new Date().toISOString().slice(0,10);
   document.getElementById('inTorneioTimes').value='';
-  torneioFormatoSel='ida'; renderTorneioFormatoChips();
+  tn = {grupos:1, k:0, volta:false, terc:false, ultimoN:-1};
+  renderTorneioOpcoes();
   document.getElementById('overlayTorneio').classList.add('open');
 }
 function fecharModalTorneio(){ document.getElementById('overlayTorneio').classList.remove('open'); }
-function gerarJogos(times, idaVolta){
+function gerarJogos(times, idaVolta, grupo){
   // método do círculo: todos contra todos, em rodadas
   const ids = times.map(t=>t.id);
   if(ids.length%2) ids.push(null);
@@ -1906,37 +1952,90 @@ function gerarJogos(times, idaVolta){
   for(let r=0;r<n-1;r++){
     for(let i=0;i<n/2;i++){
       const a = arr[i], b = arr[n-1-i];
-      if(a && b) jogos.push({id:uid(), rodada:r+1, a, b, pa:null, pb:null});
+      if(a && b) jogos.push({id:uid(), grupo, rodada:r+1, a, b, pa:null, pb:null});
     }
     arr = [arr[0], arr[n-1], ...arr.slice(1,n-1)];
   }
   if(idaVolta){
-    const base = jogos.length ? Math.max(...jogos.map(j=>j.rodada)) : 0;
-    jogos.slice().forEach(j=> jogos.push({id:uid(), rodada:j.rodada+base, a:j.b, b:j.a, pa:null, pb:null}));
+    const base = n-1;
+    jogos.slice().forEach(j=> jogos.push({id:uid(), grupo, rodada:j.rodada+base, a:j.b, b:j.a, pa:null, pb:null}));
   }
   return jogos;
 }
 function salvarTorneio(){
   if(!podeEditar()) return;
   const nome = document.getElementById('inTorneioNome').value.trim();
-  const nomes = document.getElementById('inTorneioTimes').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const nomes = nomesTorneio();
   if(!nome){ alert('Dê um nome ao campeonato.'); return; }
-  if(nomes.length<2){ alert('Informe pelo menos 2 times, um por linha.'); return; }
-  const times = nomes.map(n=>({id:uid(), nome:n}));
-  state.torneios.push({ id:uid(), nome, data:document.getElementById('inTorneioData').value, formato:torneioFormatoSel, times, jogos:gerarJogos(times, torneioFormatoSel==='idavolta') });
+  if(nomes.length<4 || nomes.length>16){ alert('Informe de 4 a 16 times, um por linha.'); return; }
+  const g = tn.grupos;
+  // distribui os times nos grupos em serpentina, na ordem digitada
+  const times = nomes.map((n,i)=>{ const row=Math.floor(i/g), idx=i%g; return {id:uid(), nome:n, grupo: row%2===0? idx : g-1-idx}; });
+  let jogos = [];
+  for(let gi=0; gi<g; gi++) jogos = jogos.concat(gerarJogos(times.filter(t=>t.grupo===gi), tn.volta, gi));
+  state.torneios.push({ id:uid(), nome, data:document.getElementById('inTorneioData').value, times, jogos,
+    config:{grupos:g, k:tn.k, volta:tn.volta, terceiro: tn.k>=4 && tn.terc}, ko:{} });
   persist(); fecharModalTorneio(); renderTorneios();
   abrirDetalheTorneio(state.torneios[state.torneios.length-1].id);
 }
-function classificacao(t){
-  const m = {}; t.times.forEach(x=>{ m[x.id]={id:x.id,nome:x.nome,j:0,v:0,d:0,pp:0,pc:0,pts:0}; });
-  t.jogos.forEach(j=>{
-    if(j.pa==null||j.pb==null) return;
+function cfgTorneio(t){ return Object.assign({grupos:1,k:0,terceiro:false}, t.config||{}); }
+const feito = j=> j.pa!=null && j.pb!=null;
+function cmpRank(x,y){ return y.pts-x.pts || (y.pp-y.pc)-(x.pp-x.pc) || y.pp-x.pp || x.nome.localeCompare(y.nome); }
+function classificacao(t, grupo){
+  const m = {};
+  t.times.filter(x=>(x.grupo||0)===grupo).forEach(x=>{ m[x.id]={id:x.id,nome:x.nome,j:0,v:0,e:0,d:0,pp:0,pc:0,pts:0}; });
+  t.jogos.filter(j=>(j.grupo||0)===grupo).forEach(j=>{
+    if(!feito(j)) return;
     const A=m[j.a], B=m[j.b]; if(!A||!B) return;
     A.j++; B.j++; A.pp+=j.pa; A.pc+=j.pb; B.pp+=j.pb; B.pc+=j.pa;
     if(j.pa>j.pb){ A.v++; B.d++; A.pts+=3; } else if(j.pb>j.pa){ B.v++; A.d++; B.pts+=3; }
-    else { A.pts+=1; B.pts+=1; }
+    else { A.e++; B.e++; A.pts+=1; B.pts+=1; }
   });
-  return Object.values(m).sort((x,y)=> y.pts-x.pts || (y.pp-y.pc)-(x.pp-x.pc) || y.pp-x.pp || x.nome.localeCompare(y.nome));
+  return Object.values(m).sort(cmpRank);
+}
+function classificados(t){
+  const {grupos:g, k} = cfgTorneio(t);
+  const tabs = []; for(let i=0;i<g;i++) tabs.push(classificacao(t,i));
+  const base = Math.floor(k/g);
+  let sel = [];
+  tabs.forEach((tb,gi)=> tb.slice(0,base).forEach((r,pos)=> sel.push({...r,pos:pos+1,grupo:gi})));
+  const falta = k - sel.length;
+  if(falta>0){
+    const resto = [];
+    tabs.forEach((tb,gi)=>{ const r=tb[base]; if(r) resto.push({...r,pos:base+1,grupo:gi}); });
+    resto.sort(cmpRank); sel = sel.concat(resto.slice(0,falta));
+  }
+  return sel.sort((a,b)=> a.pos-b.pos || cmpRank(a,b));
+}
+function ordemChave(k){ let o=[1]; while(o.length<k){ const s=o.length*2; o=o.flatMap(x=>[x,s+1-x]); } return o; }
+function chave(t){
+  const {k, terceiro} = cfgTorneio(t);
+  if(!k) return null;
+  const ko = t.ko||{};
+  const pronto = t.jogos.length>0 && t.jogos.every(feito);
+  const seeds = pronto ? classificados(t) : null;
+  let atuais = ordemChave(k).map(sd=> seeds && seeds[sd-1] ? seeds[sd-1].id : null);
+  const rounds = [];
+  for(let tam=k; tam>=2; tam/=2){
+    const jogos = [];
+    for(let i=0;i<tam/2;i++){
+      const a=atuais[2*i], b=atuais[2*i+1], id=`ko${tam}-${i}`, r=ko[id]||{};
+      const pa = r.pa==null?null:r.pa, pb = r.pb==null?null:r.pb;
+      let venc=null, perd=null;
+      if(a && b && pa!=null && pb!=null && pa!==pb){ venc = pa>pb?a:b; perd = pa>pb?b:a; }
+      jogos.push({id,a,b,pa,pb,venc,perd});
+    }
+    rounds.push({tam, nome:NOME_FASE[tam], jogos});
+    atuais = jogos.map(j=>j.venc);
+  }
+  if(terceiro && k>=4){
+    const semi = rounds.find(r=>r.tam===4);
+    const a=semi.jogos[0].perd, b=semi.jogos[1].perd, r=ko['ko-3']||{};
+    const pa=r.pa==null?null:r.pa, pb=r.pb==null?null:r.pb;
+    let venc=null; if(a&&b&&pa!=null&&pb!=null&&pa!==pb) venc = pa>pb?a:b;
+    rounds.push({tam:0, nome:'Disputa de 3º lugar', jogos:[{id:'ko-3',a,b,pa,pb,venc,perd:null}]});
+  }
+  return rounds;
 }
 function renderTorneios(){
   document.getElementById('countTorneios').textContent = state.torneios.length;
@@ -1944,13 +2043,19 @@ function renderTorneios(){
   const lista = [...state.torneios].reverse();
   wrap.innerHTML = (modoEdicao? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="abrirModalTorneio()">+ Novo campeonato</button>` : '') +
     (lista.length ? lista.map(t=>{
-      const feitos = t.jogos.filter(j=>j.pa!=null&&j.pb!=null).length;
-      const lider = feitos ? classificacao(t)[0] : null;
+      const feitos = t.jogos.filter(feito).length;
       const dataFmt = t.data ? t.data.split('-').reverse().join('/') : 'Sem data';
+      const rd = chave(t); const final = rd && rd.find(r=>r.tam===2);
+      const camp = final && final.jogos[0].venc;
+      const nomeCamp = camp ? (t.times.find(x=>x.id===camp)||{}).nome : null;
+      const g = cfgTorneio(t);
       return `<div class="evento-card" onclick="abrirDetalheTorneio('${t.id}')">
-        <div style="font-weight:800;font-size:15px">${esc(t.nome)}</div>
-        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">${dataFmt} · ${t.times.length} times · ${feitos}/${t.jogos.length} jogos</div>
-        ${lider? `<div style="font-size:12.5px;margin-top:6px">🥇 Líder: <b>${esc(lider.nome)}</b> (${lider.pts} pts)</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-weight:800;font-size:15px;flex:1;min-width:0">${esc(t.nome)}</div>
+          ${modoEdicao? `<button class="icon-btn" title="Excluir campeonato" onclick="event.stopPropagation();excluirTorneioDireto('${t.id}',this)">🗑️</button>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">${dataFmt} · ${t.times.length} times${g.grupos>1?' · '+g.grupos+' grupos':''} · ${feitos}/${t.jogos.length} jogos${g.k?' · mata-mata: '+NOME_FASE[g.k].toLowerCase():''}</div>
+        ${nomeCamp? `<div style="font-size:12.5px;margin-top:6px">🏆 Campeão: <b>${esc(nomeCamp)}</b></div>` : ''}
       </div>`;
     }).join('') : `<div class="empty"><span>🥇</span>Nenhum campeonato criado ainda.${modoEdicao?'':' Entre como administrador para criar.'}</div>`);
 }
@@ -1959,45 +2064,87 @@ function abrirDetalheTorneio(id){
   document.getElementById('overlayTorneioDetalhe').classList.add('open');
 }
 function fecharDetalheTorneio(){ document.getElementById('overlayTorneioDetalhe').classList.remove('open'); renderTorneios(); }
+function linhaJogo(nomeA, nomeB, j, hA, hB){
+  const val = v=> v==null?'':v;
+  return modoEdicao
+    ? `<div class="jogo-row"><span class="tm dir">${nomeA}</span>
+        <input type="number" inputmode="numeric" min="0" value="${val(j.pa)}" onchange="${hA}">
+        <span>x</span>
+        <input type="number" inputmode="numeric" min="0" value="${val(j.pb)}" onchange="${hB}">
+        <span class="tm">${nomeB}</span></div>`
+    : `<div class="jogo-row"><span class="tm dir">${nomeA}</span><b>${j.pa==null?'-':j.pa} x ${j.pb==null?'-':j.pb}</b><span class="tm">${nomeB}</span></div>`;
+}
 function renderDetalheTorneio(){
   const t = state.torneios.find(x=>x.id===torneioDetalheId); if(!t) return;
+  const cfg = cfgTorneio(t);
   document.getElementById('torneioDetTitulo').textContent = t.nome;
-  const nome = id=> esc((t.times.find(x=>x.id===id)||{}).nome||'?');
-  const tab = classificacao(t);
-  const todosFeitos = t.jogos.length && t.jogos.every(j=>j.pa!=null&&j.pb!=null);
-  let h = todosFeitos ? `<div class="banco-card" style="margin-bottom:12px">🏆 Campeão: <b>${esc(tab[0].nome)}</b></div>` : '';
-  h += `<div class="tabela-wrap"><table class="classif"><tr><th>#</th><th class="tm">Time</th><th>J</th><th>V</th><th>D</th><th>PP</th><th>PC</th><th>SP</th><th>Pts</th></tr>` +
-    tab.map((r,i)=>`<tr class="${i===0&&r.j?'lider':''}"><td>${i+1}</td><td class="tm">${esc(r.nome)}</td><td>${r.j}</td><td>${r.v}</td><td>${r.d}</td><td>${r.pp}</td><td>${r.pc}</td><td>${r.pp-r.pc}</td><td class="pts">${r.pts}</td></tr>`).join('') + `</table></div>`;
-  h += `<div style="font-size:11px;color:var(--ink-soft);margin-top:6px">V = 3 pts, empate = 1, derrota = 0. PP/PC = pontos pró/contra, SP = saldo.</div>`;
-  const rodadas = [...new Set(t.jogos.map(j=>j.rodada))].sort((a,b)=>a-b);
-  rodadas.forEach(r=>{
-    h += `<div class="rodada-tit">Rodada ${r}</div>`;
-    t.jogos.filter(j=>j.rodada===r).forEach(j=>{
-      const val = v=> v==null?'':v;
-      h += modoEdicao
-        ? `<div class="jogo-row"><span class="tm dir">${nome(j.a)}</span>
-            <input type="number" inputmode="numeric" min="0" value="${val(j.pa)}" onchange="salvarPlacar('${j.id}','pa',this.value)">
-            <span>x</span>
-            <input type="number" inputmode="numeric" min="0" value="${val(j.pb)}" onchange="salvarPlacar('${j.id}','pb',this.value)">
-            <span class="tm">${nome(j.b)}</span></div>`
-        : `<div class="jogo-row"><span class="tm dir">${nome(j.a)}</span><b>${j.pa==null?'-':j.pa} x ${j.pb==null?'-':j.pb}</b><span class="tm">${nome(j.b)}</span></div>`;
+  const nm = id=> id? esc((t.times.find(x=>x.id===id)||{}).nome||'?') : '<i style="color:var(--ink-soft)">A definir</i>';
+  const rounds = chave(t);
+  let h = '';
+  if(rounds){
+    const fin = rounds.find(r=>r.tam===2).jogos[0];
+    if(fin.venc){
+      const terc = rounds.find(r=>r.tam===0);
+      h += `<div class="banco-card" style="margin-bottom:12px">🏆 Campeão: <b>${nm(fin.venc)}</b><br>🥈 Vice: <b>${nm(fin.venc===fin.a?fin.b:fin.a)}</b>${terc&&terc.jogos[0].venc?`<br>🥉 3º lugar: <b>${nm(terc.jogos[0].venc)}</b>`:''}</div>`;
+    }
+  }
+  const okIds = new Set(classificados(t).filter(r=>r.j>0).map(r=>r.id));
+  for(let gi=0; gi<cfg.grupos; gi++){
+    const tab = classificacao(t, gi);
+    h += `<div class="rodada-tit" style="margin-top:${gi?22:6}px">${cfg.grupos>1?'Grupo '+LETRAS[gi]:'Fase classificatória'}</div>`;
+    h += `<div class="tabela-wrap"><table class="classif"><tr><th>#</th><th class="tm">Time</th><th>Pts</th><th>J</th><th>V</th><th>E</th><th>D</th><th>PM</th><th>PS</th><th>SP</th></tr>` +
+      tab.map((r,i)=>`<tr class="${cfg.k&&okIds.has(r.id)?'lider':''}"><td>${i+1}</td><td class="tm">${esc(r.nome)}</td><td class="pts">${r.pts}</td><td>${r.j}</td><td>${r.v}</td><td>${r.e}</td><td>${r.d}</td><td>${r.pp}</td><td>${r.pc}</td><td>${r.pp-r.pc}</td></tr>`).join('') + `</table></div>`;
+    const js = t.jogos.filter(j=>(j.grupo||0)===gi);
+    [...new Set(js.map(j=>j.rodada))].sort((a,b)=>a-b).forEach(r=>{
+      h += `<div class="rodada-tit">Rodada ${r}${cfg.grupos>1?' · Grupo '+LETRAS[gi]:''}</div>`;
+      js.filter(j=>j.rodada===r).forEach(j=>{ h += linhaJogo(nm(j.a), nm(j.b), j, `salvarPlacar('${j.id}','pa',this.value)`, `salvarPlacar('${j.id}','pb',this.value)`); });
     });
-  });
-  if(modoEdicao) h += `<button class="btn btn-danger btn-block" style="margin-top:16px" onclick="excluirTorneio()">🗑️ Excluir campeonato</button>`;
+  }
+  h += `<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">Vitória = 3 pts, empate = 1. PM/PS = pontos marcados/sofridos, SP = saldo. Desempate: pontos, saldo, pontos marcados.${cfg.k?' Destaque amarelo = times que classificam.':''}</div>`;
+  if(rounds){
+    h += `<div class="rodada-tit" style="margin-top:24px;font-size:13px;color:var(--navy-900)">Mata-mata</div>`;
+    const pronto = t.jogos.every(feito);
+    if(!pronto) h += `<div style="font-size:12px;color:var(--ink-soft);margin:4px 0">Os confrontos aparecem quando todos os jogos da fase classificatória tiverem placar. Melhor classificado enfrenta o pior.</div>`;
+    rounds.forEach(r=>{
+      h += `<div class="rodada-tit">${r.nome}</div>`;
+      r.jogos.forEach(j=>{
+        h += linhaJogo(nm(j.a), nm(j.b), j, `salvarPlacarKO('${j.id}','pa',this.value)`, `salvarPlacarKO('${j.id}','pb',this.value)`);
+        if(j.pa!=null && j.pb!=null && j.pa===j.pb) h += `<div style="font-size:11.5px;color:var(--danger)">Empate no mata-mata: ajuste o placar para definir quem avança.</div>`;
+      });
+    });
+  }
+  if(modoEdicao) h += `<button class="btn btn-danger btn-block" style="margin-top:20px" onclick="excluirTorneioDireto('${t.id}',this)">🗑️ Excluir campeonato</button>`;
   document.getElementById('torneioDetBody').innerHTML = h;
 }
+function parsePlacar(v){ return v==='' ? null : Math.max(0, parseInt(v,10)||0); }
 function salvarPlacar(jogoId, lado, valor){
   if(!podeEditar()) return;
   const t = state.torneios.find(x=>x.id===torneioDetalheId); if(!t) return;
   const j = t.jogos.find(x=>x.id===jogoId); if(!j) return;
-  j[lado] = valor==='' ? null : Math.max(0, parseInt(valor,10)||0);
+  j[lado] = parsePlacar(valor);
   persist(); renderDetalheTorneio();
 }
-function excluirTorneio(){
+function salvarPlacarKO(id, lado, valor){
   if(!podeEditar()) return;
-  if(!confirm('Excluir este campeonato e todos os placares?')) return;
-  state.torneios = state.torneios.filter(x=>x.id!==torneioDetalheId);
-  persist(); fecharDetalheTorneio();
+  const t = state.torneios.find(x=>x.id===torneioDetalheId); if(!t) return;
+  if(!t.ko) t.ko = {};
+  if(!t.ko[id]) t.ko[id] = {pa:null,pb:null};
+  t.ko[id][lado] = parsePlacar(valor);
+  persist(); renderDetalheTorneio();
+}
+// exclusão em dois toques (funciona em qualquer navegador, sem janela de confirmação)
+function excluirTorneioDireto(id, btn){
+  if(!podeEditar()) return;
+  if(btn.dataset.armado){
+    state.torneios = state.torneios.filter(x=>x.id!==id);
+    persist();
+    document.getElementById('overlayTorneioDetalhe').classList.remove('open');
+    renderTorneios(); return;
+  }
+  btn.dataset.armado = '1';
+  const original = btn.textContent;
+  btn.textContent = btn.classList.contains('icon-btn') ? 'Confirmar?' : '⚠️ Toque de novo para excluir';
+  setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.armado; btn.textContent = original; } }, 3500);
 }
 
 /* ---------------- FOTOS (Supabase Storage) ---------------- */
