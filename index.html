@@ -360,6 +360,19 @@
   .foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
   .foto-grid .th{aspect-ratio:1;border:0;padding:0;border-radius:10px;overflow:hidden;cursor:pointer;background:var(--sand-dark)}
   .foto-grid .th img{width:100%;height:100%;object-fit:cover;display:block}
+  .album-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .album-card{border:0;padding:0;background:var(--white);border-radius:var(--radius-md);box-shadow:var(--shadow-card);overflow:hidden;cursor:pointer;text-align:left;font-family:inherit}
+  .album-capa{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:2px;aspect-ratio:1;background:var(--sand-dark)}
+  .album-capa img{width:100%;height:100%;object-fit:cover;display:block;min-height:0}
+  .album-capa img:only-child{grid-column:1/3;grid-row:1/3}
+  .album-info{padding:9px 11px}
+  .album-info b{display:block;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .album-info span{font-size:11.5px;color:var(--ink-soft)}
+  .album-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .album-head input{margin:0;font-weight:700;flex:1;min-width:0}
+  .foto-grid .th.novo{animation:fotoEntra .35s ease}
+  @keyframes fotoEntra{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.foto-grid .th.novo{animation:none}}
   #fotoViewImg{width:100%;max-height:60vh;object-fit:contain;border-radius:12px;background:var(--navy-950)}
   /* ---------- RANKING ---------- */
   .podium{display:flex;align-items:flex-end;gap:8px;justify-content:center;margin-bottom:18px}
@@ -598,7 +611,7 @@
     <label class="field-label">Legenda</label>
     <input id="inFotoLegenda" placeholder="Ex: Churrasco de fim de ano" onchange="salvarLegendaFoto()">
     <div id="fotoViewMeta" style="font-size:12px;color:var(--ink-soft);margin-top:6px"></div>
-    <button class="btn btn-danger btn-block" id="btnExcluirFoto" style="margin-top:8px" onclick="excluirFoto()">🗑️ Excluir foto</button>
+    <button class="btn btn-danger btn-block" id="btnExcluirFoto" style="margin-top:8px" onclick="doisToques(this, excluirFoto)">🗑️ Excluir foto</button>
   </div>
 </div>
 
@@ -905,7 +918,7 @@ function atualizarBotaoEdicao(){
 }
 
 function defaultState(){
-  return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}, torneios:[], fotos:[], escala10:true};
+  return {athletes:[], attendance:{}, finance:[], lastTeams:null, selected:[], mensalidades:{}, valorMensalidade:50, eventos:[], participacoes:{}, torneios:[], fotos:[], albuns:[], escala10:true};
 }
 function garantirCampos(s){
   if(!s.escala10){
@@ -918,6 +931,7 @@ function garantirCampos(s){
   if(!s.eventos) s.eventos = [];
   if(!s.torneios) s.torneios = [];
   if(!s.fotos) s.fotos = [];
+  if(!s.albuns) s.albuns = [];
   if(!s.participacoes) s.participacoes = {};
   return s;
 }
@@ -2148,21 +2162,78 @@ function excluirTorneioDireto(id, btn){
 }
 
 /* ---------------- FOTOS (Supabase Storage) ---------------- */
-let fotoAbertaId = null;
+let fotoAlbumAberto = null, fotoAbertaId = null, fotoStatus = '';
+const fotoLocal = {};   // miniaturas locais para aparecerem na hora, antes de recarregar
 function urlFoto(path){ return `${SUPABASE_URL}/storage/v1/object/public/fotos/${path}`; }
-function renderFotos(){
+function srcFoto(f){ return fotoLocal[f.id] || urlFoto(f.path); }
+function fotosDoAlbum(id){ return state.fotos.filter(f=> id==='_sem' ? !f.albumId : f.albumId===id); }
+function fmtData(d){ return d ? d.split('-').reverse().join('/') : ''; }
+function doisToques(btn, fn){
+  if(btn.dataset.armado){ delete btn.dataset.armado; fn(); return; }
+  btn.dataset.armado = '1';
+  const original = btn.textContent;
+  btn.textContent = '⚠️ Toque de novo para excluir';
+  setTimeout(()=>{ if(btn.isConnected){ delete btn.dataset.armado; btn.textContent = original; } }, 3500);
+}
+function renderFotos(novaId){
   document.getElementById('countFotos').textContent = state.fotos.length;
-  document.getElementById('fotosAcoes').innerHTML = modoEdicao
-    ? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="document.getElementById('inFotosTime').click()">+ Adicionar fotos</button>` : '';
-  const grid = document.getElementById('fotoGrid');
-  if(!state.fotos.length){
-    grid.style.display='block';
-    grid.innerHTML = `<div class="empty"><span>📸</span>Nenhuma foto ainda.${modoEdicao?'':' Entre como administrador para adicionar.'}</div>`;
+  const acoes = document.getElementById('fotosAcoes'), grid = document.getElementById('fotoGrid');
+  if(fotoAlbumAberto) return renderAlbum(novaId);
+  grid.className = 'album-grid';
+  acoes.innerHTML = modoEdicao
+    ? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="document.getElementById('inFotosTime').click()">+ Novo álbum com fotos</button>` : '';
+  const albuns = [...state.albuns].reverse();
+  if(state.fotos.some(f=>!f.albumId)) albuns.push({id:'_sem', nome:'Outras fotos', data:''});
+  if(!albuns.length){
+    grid.className = '';
+    grid.innerHTML = `<div class="empty"><span>📸</span>Nenhum álbum ainda.${modoEdicao?' Toque em "Novo álbum com fotos" e escolha as fotos: o álbum é criado na hora.':' Entre como administrador para adicionar.'}</div>`;
     return;
   }
-  grid.style.display='';
-  grid.innerHTML = [...state.fotos].reverse().map(f=>
-    `<button class="th" onclick="abrirFoto('${f.id}')"><img loading="lazy" src="${urlFoto(f.path)}" alt="${esc(f.legenda||'Foto do time')}"></button>`).join('');
+  grid.innerHTML = albuns.map(a=>{
+    const fs = fotosDoAlbum(a.id);
+    const capa = fs.slice(-4).reverse().map(f=>`<img loading="lazy" src="${srcFoto(f)}" alt="">`).join('');
+    return `<button class="album-card" onclick="abrirAlbum('${a.id}')">
+      <div class="album-capa">${capa}</div>
+      <div class="album-info"><b>${esc(a.nome)}</b><span>${fs.length} foto${fs.length===1?'':'s'}${a.data?' · '+fmtData(a.data):''}</span></div></button>`;
+  }).join('');
+}
+function abrirAlbum(id){ fotoAlbumAberto = id; renderFotos(); window.scrollTo({top:0}); }
+function voltarAlbuns(){ fotoAlbumAberto = null; renderFotos(); }
+function renderAlbum(novaId){
+  const id = fotoAlbumAberto;
+  const alb = id==='_sem' ? {id:'_sem', nome:'Outras fotos'} : state.albuns.find(a=>a.id===id);
+  if(!alb){ fotoAlbumAberto = null; return renderFotos(); }
+  const acoes = document.getElementById('fotosAcoes'), grid = document.getElementById('fotoGrid');
+  const fs = fotosDoAlbum(id);
+  const editavel = modoEdicao && id!=='_sem';
+  acoes.innerHTML = `<div class="album-head">
+      <button class="btn btn-ghost" style="padding:9px 12px" onclick="voltarAlbuns()">← Álbuns</button>
+      <input id="inAlbumNome" value="${esc(alb.nome)}" ${editavel?'':'disabled'} onchange="renomearAlbum(this.value)" aria-label="Nome do álbum">
+    </div>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">${fs.length} foto${fs.length===1?'':'s'}${alb.data?' · '+fmtData(alb.data):''}${fotoStatus?` · <b style="color:var(--navy-900)">${fotoStatus}</b>`:''}</div>
+    ${modoEdicao && id!=='_sem' ? `<div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-gold" style="flex:1" onclick="document.getElementById('inFotosTime').click()">+ Adicionar fotos</button>
+      <button class="btn btn-danger" onclick="doisToques(this, excluirAlbum)">🗑️ Excluir álbum</button></div>` : ''}`;
+  grid.className = 'foto-grid';
+  grid.innerHTML = fs.length
+    ? [...fs].reverse().map(f=>`<button class="th ${f.id===novaId?'novo':''}" onclick="abrirFoto('${f.id}')"><img src="${srcFoto(f)}" alt="${esc(f.legenda||'Foto do time')}"></button>`).join('')
+    : `<div class="empty" style="grid-column:1/-1"><span>📸</span>${fotoStatus?'Enviando as fotos...':'Álbum vazio.'}</div>`;
+}
+function renomearAlbum(v){
+  if(!podeEditar()) return;
+  const a = state.albuns.find(x=>x.id===fotoAlbumAberto); if(!a) return;
+  a.nome = v.trim() || a.nome; persist();
+}
+async function excluirAlbum(){
+  if(!podeEditar()) return;
+  const id = fotoAlbumAberto; if(!id || id==='_sem') return;
+  const fs = fotosDoAlbum(id);
+  for(const f of fs){
+    try{ await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${f.path}`, { method:'DELETE', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}` } }); }catch(e){}
+  }
+  state.fotos = state.fotos.filter(f=>f.albumId!==id);
+  state.albuns = state.albuns.filter(a=>a.id!==id);
+  persist(); fotoAlbumAberto = null; renderFotos();
 }
 function reduzirImagem(file, max=1600, q=0.82){
   return new Promise((resolve,reject)=>{
@@ -2180,39 +2251,44 @@ function reduzirImagem(file, max=1600, q=0.82){
   });
 }
 async function enviarFotos(files){
-  if(!podeEditar()){ document.getElementById('inFotosTime').value=''; return; }
+  const input = document.getElementById('inFotosTime');
   const lista = Array.from(files||[]);
-  if(!lista.length) return;
-  const btn = document.querySelector('#fotosAcoes button');
+  if(!podeEditar() || !lista.length){ input.value=''; return; }
+  // dentro de um álbum: adiciona nele. Na lista: cria um álbum novo na hora.
+  let criou = false;
+  if(!fotoAlbumAberto || fotoAlbumAberto==='_sem'){
+    const hoje = new Date().toISOString().slice(0,10);
+    const alb = { id:uid(), nome:'Álbum '+fmtData(hoje), data:hoje };
+    state.albuns.push(alb); fotoAlbumAberto = alb.id; criou = true;
+  }
+  const albumId = fotoAlbumAberto;
   let ok = 0, falhas = 0;
   for(let i=0;i<lista.length;i++){
-    if(btn) btn.textContent = `Enviando ${i+1} de ${lista.length}...`;
+    fotoStatus = `enviando ${i+1} de ${lista.length}`;
+    renderFotos();
     try{
       const blob = await reduzirImagem(lista[i]);
       const path = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
-      let res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${path}`, {
-        method:'POST', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'image/jpeg' }, body: blob
-      });
-      if(res.status===401 || res.status===400){
-        if(await renovarSessao()){
-          res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${path}`, {
-            method:'POST', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'image/jpeg' }, body: blob });
-        }
-      }
+      const enviar = ()=> fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${path}`, {
+        method:'POST', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}`, 'Content-Type':'image/jpeg' }, body: blob });
+      let res = await enviar();
+      if((res.status===401 || res.status===400) && await renovarSessao()) res = await enviar();
       if(!res.ok) throw new Error('upload');
-      state.fotos.push({ id:uid(), path, legenda:'', data:new Date().toISOString().slice(0,10) });
-      ok++;
+      const foto = { id:uid(), path, albumId, legenda:'', data:new Date().toISOString().slice(0,10) };
+      fotoLocal[foto.id] = URL.createObjectURL(blob);
+      state.fotos.push(foto); ok++;
+      persist(); renderFotos(foto.id);   // a foto aparece no álbum assim que sobe
     }catch(e){ falhas++; }
   }
-  document.getElementById('inFotosTime').value='';
-  if(ok) persist();
-  renderFotos();
+  fotoStatus = ''; input.value='';
+  if(!ok && criou){ state.albuns = state.albuns.filter(a=>a.id!==albumId); fotoAlbumAberto = null; }
+  persist(); renderFotos();
   if(falhas) alert(`${falhas} foto(s) não foram enviadas. Confira a conexão e se você está logado como administrador.`);
 }
 function abrirFoto(id){
   const f = state.fotos.find(x=>x.id===id); if(!f) return;
   fotoAbertaId = id;
-  document.getElementById('fotoViewImg').src = urlFoto(f.path);
+  document.getElementById('fotoViewImg').src = srcFoto(f);
   const leg = document.getElementById('inFotoLegenda');
   leg.value = f.legenda||''; leg.disabled = !modoEdicao;
   document.getElementById('fotoViewMeta').textContent = f.data ? 'Adicionada em '+f.data.split('-').reverse().join('/') : '';
@@ -2229,7 +2305,6 @@ function salvarLegendaFoto(){
 async function excluirFoto(){
   if(!podeEditar()) return;
   const f = state.fotos.find(x=>x.id===fotoAbertaId); if(!f) return;
-  if(!confirm('Excluir esta foto?')) return;
   try{
     await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${f.path}`, { method:'DELETE', headers:{ apikey:SUPABASE_ANON_KEY, Authorization:`Bearer ${authSession.access_token}` } });
   }catch(e){}
