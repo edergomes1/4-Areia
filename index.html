@@ -265,6 +265,12 @@
   .resumo-evento{display:flex;gap:10px;margin-bottom:4px;flex-wrap:wrap}
   .resumo-chip{background:var(--sand);border-radius:10px;padding:8px 12px;font-size:11.5px;color:var(--ink-soft);flex:1;min-width:90px;text-align:center}
   .resumo-chip b{display:block;font-size:15px;color:var(--navy-900)}
+  body.viewer .adm-only{display:none !important}
+  .gate{position:fixed;inset:0;z-index:200;background:var(--sand);display:none;align-items:center;justify-content:center;padding:24px}
+  .gate.open{display:flex}
+  .gate-box{width:100%;max-width:360px;text-align:center}
+  .gate-box h2{margin:0 0 4px;color:var(--navy-900)}
+  .gate-box p{font-size:13px;color:var(--ink-soft);margin:0 0 14px}
   .nivel-badge{font-size:12px;font-weight:600;color:var(--gold)}
   .ath-actions{display:flex;gap:4px}
   .icon-btn{background:none;border:0;font-size:16px;color:var(--ink-soft);cursor:pointer;padding:6px}
@@ -449,7 +455,7 @@
       <p>@4areiavoleibol</p>
     </div>
     <button class="head-config-btn" id="btnLock" onclick="toggleModoEdicao()">🔒</button>
-    <button class="head-config-btn" onclick="abrirConfig()">⚙️</button>
+    <button class="head-config-btn adm-only" onclick="abrirConfig()">⚙️</button>
   </div>
   <p class="head-greet">E aí, time! <b id="greetCount">—</b> atletas prontos pra jogar 🏐</p>
   <p class="head-fundacao">🎂 Fundado em 28/09/2021</p>
@@ -462,7 +468,7 @@
 <main>
   <div class="stat-strip">
     <div class="stat-chip"><div class="n" id="statAthletes">0</div><div class="l">Atletas</div></div>
-    <div class="stat-chip"><div class="n" id="statBalance">R$0</div><div class="l">Caixa</div></div>
+    <div class="stat-chip adm-only"><div class="n" id="statBalance">R$0</div><div class="l">Caixa</div></div>
     <div class="stat-chip"><div class="n" id="statDays">—</div><div class="l" id="statDaysLabel">Dias p/ evento</div></div>
     <div class="stat-chip"><div class="n" id="statAnos">—</div><div class="l">Anos de time</div></div>
   </div>
@@ -516,7 +522,7 @@
   </section>
 
   <!-- TAB: CAIXA -->
-  <section class="tab" id="tab-caixa">
+  <section class="tab adm-only" id="tab-caixa">
     <div class="section-title"><h2>💰 Caixa do time</h2></div>
     <div class="balance-card">
       <div class="lbl">Saldo atual</div>
@@ -585,7 +591,7 @@
   <button class="active" data-tab="atletas" onclick="trocarTab('atletas')"><span class="ic">👥</span>Atletas</button>
   <button data-tab="sorteio" onclick="trocarTab('sorteio')"><span class="ic">🎲</span>Sorteio</button>
   <button data-tab="presenca" onclick="trocarTab('presenca')"><span class="ic">✅</span>Presença</button>
-  <button data-tab="caixa" onclick="trocarTab('caixa')"><span class="ic">💰</span>Caixa</button>
+  <button class="adm-only" data-tab="caixa" onclick="trocarTab('caixa')"><span class="ic">💰</span>Caixa</button>
   <button data-tab="ranking" onclick="trocarTab('ranking')"><span class="ic">🏆</span>Ranking</button>
   <button data-tab="eventos" onclick="trocarTab('eventos')"><span class="ic">🎉</span>Eventos</button>
   <button data-tab="torneio" onclick="trocarTab('torneio')"><span class="ic">🥇</span>Torneio</button>
@@ -734,6 +740,18 @@
   </div>
 </div>
 
+<!-- TELA DE ACESSO (senha do time ou administrador) -->
+<div class="gate" id="overlayAcesso">
+  <div class="gate-box">
+    <h2>4ª Areia Vôlei</h2>
+    <p>Digite a senha de acesso do time.</p>
+    <input type="password" id="inAcessoSenha" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrarComSenha()">
+    <div id="acessoErro" style="color:var(--danger);font-size:12.5px;min-height:18px"></div>
+    <button class="btn btn-gold btn-block" onclick="entrarComSenha()">Entrar</button>
+    <button type="button" onclick="acessoComoAdmin()" style="background:none;border:none;color:var(--ink-soft);font-size:12.5px;text-decoration:underline;margin-top:14px;width:100%;padding:4px">Sou administrador</button>
+  </div>
+</div>
+
 <!-- MODAL LOGIN (edição real, via Supabase Auth) -->
 <div class="overlay" id="overlayLogin">
   <div class="sheet">
@@ -787,6 +805,47 @@ function podeEditar(){
   }
   return true;
 }
+/* ---------------- ACESSO: ADMINISTRADOR x USUÁRIO (SÓ VISUALIZAÇÃO) ----------------
+   Atenção: a senha do usuário só controla o que aparece na tela deste aplicativo.
+   Ela não protege os dados no banco. Quem escolheu isso foi o dono do time. */
+const VIEWER_HASH = '758fa18bf5d0751da9f53dc5fe0c653f8ee4ad368f31a3c1a16de3dbc6bee629';
+const VIEWER_STORAGE = '4areia_acesso_v1';
+let acessoViewer = false;
+function ehViewer(){ return !authSession && acessoViewer; }
+async function sha256Hex(txt){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function aplicarPapel(){
+  document.body.classList.toggle('viewer', ehViewer());
+  const ativa = document.querySelector('section.tab.active');
+  if(ehViewer() && ativa && ativa.id==='tab-caixa') trocarTab('atletas');
+}
+function precisaDeAcesso(){ return !authSession && !acessoViewer; }
+function abrirAcesso(){
+  document.getElementById('inAcessoSenha').value = '';
+  document.getElementById('acessoErro').textContent = '';
+  document.getElementById('overlayAcesso').classList.add('open');
+}
+function fecharAcesso(){ document.getElementById('overlayAcesso').classList.remove('open'); }
+async function entrarComSenha(){
+  const senha = document.getElementById('inAcessoSenha').value;
+  if(!senha){ document.getElementById('acessoErro').textContent = 'Digite a senha.'; return; }
+  let h = '';
+  try{ h = await sha256Hex('4areia:v1:'+senha); }catch(e){}
+  if(h === VIEWER_HASH){
+    acessoViewer = true;
+    try{ localStorage.setItem(VIEWER_STORAGE, VIEWER_HASH); }catch(e){}
+    fecharAcesso(); aplicarPapel(); renderTudo(); renderUltimoSorteio();
+  }else{
+    document.getElementById('acessoErro').textContent = 'Senha incorreta.';
+  }
+}
+function acessoComoAdmin(){ abrirLogin(); }
+function carregarAcessoViewer(){
+  try{ acessoViewer = localStorage.getItem(VIEWER_STORAGE) === VIEWER_HASH; }catch(e){ acessoViewer = false; }
+}
+
 function loadAuthSession(){
   try{
     const raw = localStorage.getItem(AUTH_STORAGE);
@@ -832,6 +891,7 @@ async function renovarSessao(){
 function fazerLogout(){
   saveAuthSession(null);
   atualizarBotaoEdicao();
+  if(precisaDeAcesso()) abrirAcesso();
   renderTudo(); renderUltimoSorteio();
   if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
   if(document.getElementById('tab-ranking').classList.contains('active')) renderRanking();
@@ -915,7 +975,7 @@ async function enviarLogin(){
   if(!email || !senha){ alert('Preencha email e senha.'); return; }
   try{
     await fazerLogin(email, senha);
-    fecharLogin();
+    fecharLogin(); fecharAcesso();
     atualizarBotaoEdicao();
     renderTudo(); renderUltimoSorteio();
     if(document.getElementById('tab-eventos').classList.contains('active')) renderEventos();
@@ -940,6 +1000,7 @@ async function abrirTrocarSenha(){
 function atualizarBotaoEdicao(){
   const btn = document.getElementById('btnLock');
   if(btn) btn.textContent = modoEdicao ? '🔓' : '🔒';
+  aplicarPapel();
 }
 
 function defaultState(){
@@ -1070,6 +1131,7 @@ function moonIcon(filled){
 
 /* ---------------- NAV ---------------- */
 function trocarTab(tab){
+  if(ehViewer() && tab==='caixa') tab = 'atletas';
   document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
@@ -1268,7 +1330,7 @@ function renderAtletas(){
         <div class="name">${a.nome}</div>
         <div class="ath-meta">
           <span class="pos-chip">${a.pos}</span>
-          <span class="nivel-badge">Nível ${a.nivel}</span>
+          ${ehViewer()? '' : `<span class="nivel-badge">Nível ${a.nivel}</span>`}
         </div>
       </div>
       ${modoEdicao? `<div class="kebab-wrap">
@@ -1421,7 +1483,7 @@ function renderTimes(times, banco, vagas, totalPool){
     const qtdF = t.filter(a=>(a.genero||'M')==='F').length;
     const qtdM = t.length - qtdF;
     return `<div class="team-card">
-      <h4>Time ${i+1} <span>⭐ ${media} · ♂${qtdM} ♀${qtdF}</span></h4>
+      <h4>Time ${i+1} <span>${ehViewer()? '' : '⭐ '+media+' · '}♂${qtdM} ♀${qtdF}</span></h4>
       <ul>${t.map(a=>`<li><span>${a.nome}</span><span>${a.pos}</span></li>`).join('')}</ul>
     </div>`;
   }).join('');
@@ -1785,7 +1847,7 @@ function renderEventos(){
         </div>
         <div class="evento-stats">
           <div class="evento-stat">Confirmados<b>${confirmados}</b></div>
-          <div class="evento-stat">Arrecadado<b>${brl(totalArrecadado)}</b></div>
+          ${ehViewer()? '' : `<div class="evento-stat">Arrecadado<b>${brl(totalArrecadado)}</b></div>`}
         </div>
       </div>`;
     }).join('');
@@ -1825,8 +1887,8 @@ function renderDetalheEvento(){
     <div class="resumo-evento">
       <div class="resumo-chip">Confirmados<b>${confirmadosIds.length}</b></div>
       <div class="resumo-chip">Convidados<b>${totalConvidados}</b></div>
-      <div class="resumo-chip">Previsto<b>${brl(totalPrevisto)}</b></div>
-      <div class="resumo-chip">Arrecadado<b>${brl(totalArrecadado)}</b></div>
+      ${ehViewer()? '' : `<div class="resumo-chip">Previsto<b>${brl(totalPrevisto)}</b></div>
+      <div class="resumo-chip">Arrecadado<b>${brl(totalArrecadado)}</b></div>`}
     </div>
     ${modoEdicao? `<button class="btn btn-ghost btn-block" style="margin:10px 0 6px" onclick="abrirModalEventoEditar('${ev.id}')">✏️ Editar dados do evento</button>` : ''}
     ${modoEdicao? `<button class="btn btn-navy btn-block" style="margin-bottom:4px" onclick="adicionarAvulso()">➕ Adicionar pessoa avulsa (não é do elenco)</button>` : ''}
@@ -1846,7 +1908,7 @@ function renderDetalheEvento(){
         <span>${p.convidados||0}👥</span>
         <button onclick="mudarConvidados('${id}',1)">+</button>
       </div>
-      <button class="mensal-toggle ${p.pago?'pago':''}" onclick="togglePagamentoEvento('${id}')">${p.pago? brl(valorCobrar)+' ✓' : 'Cobrar '+brl(valorCobrar)}</button>
+      ${ehViewer()? '' : `<button class="mensal-toggle ${p.pago?'pago':''}" onclick="togglePagamentoEvento('${id}')">${p.pago? brl(valorCobrar)+' ✓' : 'Cobrar '+brl(valorCobrar)}</button>`}
       ${modoEdicao? `<button class="icon-btn" title="Editar valor cobrado" onclick="editarValorParticipante('${id}')">✏️</button>` : ''}
       ${(modoEdicao && avulso)? `<button class="icon-btn" title="Remover pessoa" onclick="excluirAvulso('${id}')">🗑️</button>` : ''}
     </div>`;
@@ -2436,8 +2498,10 @@ function renderUltimoSorteio(){
 async function iniciarApp(){
   verificarLinkRecuperacao();
   authSession = loadAuthSession();
+  carregarAcessoViewer();
   modoEdicao = !!authSession;
   atualizarBotaoEdicao();
+  if(precisaDeAcesso()) abrirAcesso();
   if(authSession) renovarSessao().then(()=>{ atualizarBotaoEdicao(); renderAtletas(); });
 
   setSyncStatus('☁️ carregando...', 'sync-pending');
