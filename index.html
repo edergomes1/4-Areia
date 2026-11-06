@@ -2520,6 +2520,21 @@ let fotoAlbumAberto = null, fotoAbertaId = null, fotoStatus = '';
 const fotoLocal = {};   // miniaturas locais para aparecerem na hora, antes de recarregar
 function urlFoto(path){ return `${SUPABASE_URL}/storage/v1/object/public/fotos/${path}`; }
 function srcFoto(f){ return fotoLocal[f.id] || urlFoto(f.path); }
+let dataNovoAlbum = '';
+function hojeISO(){ return new Date().toISOString().slice(0,10); }
+function dataValida(v){ return /^\d{4}-\d{2}-\d{2}$/.test(v||''); }
+// mais novos em cima: ordena pela data do evento; na mesma data, o criado por último vem primeiro
+function albunsOrdenados(){
+  return state.albuns.map((a,i)=>({a,i}))
+    .sort((x,y)=> (y.a.data||'').localeCompare(x.a.data||'') || (y.i - x.i))
+    .map(x=>x.a);
+}
+function mudarDataAlbum(v){
+  if(!podeEditar() || !dataValida(v)) return;
+  const a = state.albuns.find(x=>x.id===fotoAlbumAberto); if(!a) return;
+  if(a.nome === 'Álbum '+fmtData(a.data)) a.nome = 'Álbum '+fmtData(v);   // nome automático acompanha a data
+  a.data = v; persist(); renderFotos();
+}
 function fotosDoAlbum(id){ return state.fotos.filter(f=> id==='_sem' ? !f.albumId : f.albumId===id); }
 function fmtData(d){ return d ? d.split('-').reverse().join('/') : ''; }
 function doisToques(btn, fn){
@@ -2535,8 +2550,12 @@ function renderFotos(novaId){
   if(fotoAlbumAberto) return renderAlbum(novaId);
   grid.className = 'album-grid';
   acoes.innerHTML = modoEdicao
-    ? `<button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="document.getElementById('inFotosTime').click()">+ Novo álbum com fotos</button>` : '';
-  const albuns = [...state.albuns].reverse();
+    ? `<div class="card" style="margin-bottom:14px">
+        <label class="field-label" for="inDataNovoAlbum">Data do evento</label>
+        <input type="date" id="inDataNovoAlbum" value="${dataValida(dataNovoAlbum)?dataNovoAlbum:hojeISO()}" oninput="dataNovoAlbum=this.value">
+        <button class="btn btn-gold btn-block" style="margin-top:6px" onclick="document.getElementById('inFotosTime').click()">+ Novo álbum com fotos</button>
+      </div>` : '';
+  const albuns = albunsOrdenados();
   if(state.fotos.some(f=>!f.albumId)) albuns.push({id:'_sem', nome:'Outras fotos', data:''});
   if(!albuns.length){
     grid.className = '';
@@ -2564,7 +2583,9 @@ function renderAlbum(novaId){
       <button class="btn btn-ghost" style="padding:9px 12px" onclick="voltarAlbuns()">← Álbuns</button>
       <input id="inAlbumNome" value="${esc(alb.nome)}" ${editavel?'':'disabled'} onchange="renomearAlbum(this.value)" aria-label="Nome do álbum">
     </div>
-    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">${fs.length} foto${fs.length===1?'':'s'}${alb.data?' · '+fmtData(alb.data):''}${fotoStatus?` · <b style="color:var(--navy-900)">${fotoStatus}</b>`:''}</div>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">${fs.length} foto${fs.length===1?'':'s'}${(!editavel && alb.data)?' · '+fmtData(alb.data):''}${fotoStatus?` · <b style="color:var(--navy-900)">${fotoStatus}</b>`:''}</div>
+    ${editavel ? `<label class="field-label" for="inAlbumData">Data do evento</label>
+    <input type="date" id="inAlbumData" value="${dataValida(alb.data)?alb.data:''}" onchange="mudarDataAlbum(this.value)" style="margin-bottom:12px">` : ''}
     ${modoEdicao && id!=='_sem' ? `<div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="btn btn-gold" style="flex:1" onclick="document.getElementById('inFotosTime').click()">+ Adicionar fotos</button>
       <button class="btn btn-danger" onclick="doisToques(this, excluirAlbum)">🗑️ Excluir álbum</button></div>` : ''}`;
@@ -2611,8 +2632,8 @@ async function enviarFotos(files){
   // dentro de um álbum: adiciona nele. Na lista: cria um álbum novo na hora.
   let criou = false;
   if(!fotoAlbumAberto || fotoAlbumAberto==='_sem'){
-    const hoje = new Date().toISOString().slice(0,10);
-    const alb = { id:uid(), nome:'Álbum '+fmtData(hoje), data:hoje };
+    const dataEv = dataValida(dataNovoAlbum) ? dataNovoAlbum : hojeISO();
+    const alb = { id:uid(), nome:'Álbum '+fmtData(dataEv), data:dataEv };
     state.albuns.push(alb); fotoAlbumAberto = alb.id; criou = true;
   }
   const albumId = fotoAlbumAberto;
