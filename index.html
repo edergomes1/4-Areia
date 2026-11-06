@@ -217,6 +217,9 @@
     font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;cursor:pointer;
   }
   .mensal-toggle.pago{background:var(--success);border-color:var(--success);color:#fff}
+  .mensal-toggle.isento{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+  .mensal-acoes{display:flex;align-items:center;gap:8px}
+  .mensal-isentar{background:none;border:0;padding:4px 2px;font-family:inherit;font-size:11.5px;font-weight:600;color:var(--ink-soft);text-decoration:underline;cursor:pointer}
   .mensal-info{flex:1;min-width:0}
   .mensal-info .mensal-nome{display:block}
   .mensal-sub{font-size:11px;color:var(--ink-soft);margin-top:1px}
@@ -1758,7 +1761,11 @@ function excluirTx(id){
 }
 function renderCaixa(){
   renderMensalidades();
-  if(ehViewer()) return;   // usuário só vê a situação das mensalidades, sem dinheiro
+  if(ehViewer()){   // usuário só vê a situação das mensalidades: limpa qualquer valor que sobrou na tela
+    ['saldoAtual','totalEntradas','totalSaidas','statBalance'].forEach(i=>{ const e=document.getElementById(i); if(e) e.textContent='—'; });
+    ['resumoMes','historicoMeses','listaTransacoes'].forEach(i=>{ const e=document.getElementById(i); if(e) e.innerHTML=''; });
+    return;
+  }
   const entradas = state.finance.filter(t=>t.tipo==='entrada').reduce((s,t)=>s+Number(t.valor),0);
   const saidas = state.finance.filter(t=>t.tipo==='saida').reduce((s,t)=>s+Number(t.valor),0);
   document.getElementById('saldoAtual').textContent = brl(entradas-saidas);
@@ -1835,11 +1842,15 @@ function renderMensalidades(){
   const diasEntre = (de, ate)=> Math.round((new Date(ate+'T00:00:00') - new Date(de+'T00:00:00'))/86400000);
   const plural = n=> n+' dia'+(n===1?'':'s');
   let qtdAtraso = 0, qtdPagouAtraso = 0;
+  const qtdIsentos = mensalistas.filter(a=>{ const r = state.mensalidades[mes][a.id]; return r && r.isento && !r.pago; }).length;
   const linhas = mensalistas.map(a=>{
     const registro = state.mensalidades[mes][a.id];
     const pago = registro && registro.pago;
+    const isento = !!(registro && registro.isento) && !pago;
     let sub = '', cls = '', dataPag = '';
-    if(pago){
+    if(isento){
+      cls = 'ok'; sub = 'Isento neste mês';
+    }else if(pago){
       const tx = state.finance.find(t=>t.id===registro.txId);
       dataPag = registro.dataPag || (tx && tx.data) || '';
       const d = dataPag ? diasEntre(venc, dataPag) : 0;
@@ -1852,11 +1863,11 @@ function renderMensalidades(){
     }
     if(ehViewer()){
       // só a situação: paga, atrasada ou pendente (sem valores nem datas)
-      const atrasada = !pago && diasEntre(venc, hojeStr) > 0;
+      const atrasada = !pago && !isento && diasEntre(venc, hojeStr) > 0;
       return `<div class="mensal-row">
         ${avatarHtml(a,'sm')}
         <div class="mensal-info"><span class="mensal-nome">${a.nome}</span></div>
-        <span class="mensal-toggle somente ${pago?'pago':atrasada?'atrasada':''}">${pago?'Paga ✓':atrasada?'Atrasada':'Pendente'}</span>
+        <span class="mensal-toggle somente ${isento?'isento':pago?'pago':atrasada?'atrasada':''}">${isento?'Isento':pago?'Paga ✓':atrasada?'Atrasada':'Pendente'}</span>
       </div>`;
     }
     return `<div class="mensal-row">
@@ -1865,11 +1876,22 @@ function renderMensalidades(){
         <div class="mensal-sub ${cls}">${sub}</div>
         ${pago && modoEdicao ? `<input type="date" class="mensal-data" value="${dataPag}" onchange="mudarDataPagamento('${mes}','${a.id}',this.value)" aria-label="Data do pagamento">` : ''}
       </div>
-      <button class="mensal-toggle ${pago?'pago':''}" onclick="toggleMensalidade('${mes}','${a.id}')">${pago?'Pago ✓':'Pendente'}</button>
+      ${isento
+        ? `<button class="mensal-toggle isento" title="Tirar isenção" onclick="toggleIsento('${mes}','${a.id}')">Isento ✕</button>`
+        : `<div class="mensal-acoes">${(!pago && modoEdicao) ? `<button type="button" class="mensal-isentar" onclick="toggleIsento('${mes}','${a.id}')">Isentar</button>` : ''}
+          <button class="mensal-toggle ${pago?'pago':''}" onclick="toggleMensalidade('${mes}','${a.id}')">${pago?'Pago ✓':'Pendente'}</button></div>`}
     </div>`;
   }).join('');
   if(ehViewer()){ wrap.innerHTML = linhas; return; }
-  wrap.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">Vencimento: todo dia 10 · <b style="color:${qtdAtraso?'var(--danger)':'inherit'}">${qtdAtraso} em atraso</b> · ${qtdPagouAtraso} ${qtdPagouAtraso===1?'pagou':'pagaram'} com atraso</div>` + linhas;
+  wrap.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">Vencimento: todo dia 10 · <b style="color:${qtdAtraso?'var(--danger)':'inherit'}">${qtdAtraso} em atraso</b> · ${qtdPagouAtraso} ${qtdPagouAtraso===1?'pagou':'pagaram'} com atraso${qtdIsentos? ' · '+qtdIsentos+(qtdIsentos===1?' isento':' isentos') : ''}</div>` + linhas;
+}
+function toggleIsento(mes, athleteId){
+  if(!podeEditar()) return;
+  if(!state.mensalidades[mes]) state.mensalidades[mes] = {};
+  const reg = state.mensalidades[mes][athleteId];
+  if(reg && reg.pago){ alert('Este atleta já pagou. Desmarque o pagamento antes de isentar.'); return; }
+  state.mensalidades[mes][athleteId] = { pago:false, txId:null, isento: !(reg && reg.isento) };
+  persist(); renderCaixa();
 }
 function mudarDataPagamento(mes, athleteId, valor){
   if(!podeEditar() || !valor) return;
@@ -1907,7 +1929,8 @@ function compartilharCaixa(){
   const reg = state.mensalidades[mes] || {};
   const valor = state.valorMensalidade;
   const mensalistas = state.athletes.filter(a=>(a.tipo||'mensalista')==='mensalista');
-  const pendentes = mensalistas.filter(a=>!(reg[a.id] && reg[a.id].pago));
+  const isentos = mensalistas.filter(a=>reg[a.id] && reg[a.id].isento && !reg[a.id].pago);
+  const pendentes = mensalistas.filter(a=>!(reg[a.id] && (reg[a.id].pago || reg[a.id].isento)));
   const pagos = mensalistas.filter(a=>reg[a.id] && reg[a.id].pago);
   const entradas = state.finance.filter(t=>t.tipo==='entrada').reduce((s,t)=>s+Number(t.valor),0);
   const saidas = state.finance.filter(t=>t.tipo==='saida').reduce((s,t)=>s+Number(t.valor),0);
@@ -1917,6 +1940,7 @@ function compartilharCaixa(){
   txt += pendentes.length ? pendentes.map(a=>`• ${a.nome}: -${brl(valor)}`).join('\n') : 'Ninguém pendente 🎉';
   txt += `\n\n✅ *Pagos (${pagos.length})*\n`;
   txt += pagos.length ? pagos.map(a=>`• ${a.nome}`).join('\n') : 'Ninguém pagou ainda';
+  if(isentos.length) txt += `\n\n🔵 *Isentos (${isentos.length})*\n` + isentos.map(a=>`• ${a.nome}`).join('\n');
   window.open('https://wa.me/?text='+encodeURIComponent(txt), '_blank');
 }
 
