@@ -500,10 +500,10 @@
   <!-- TAB: ATLETAS -->
   <section class="tab active" id="tab-atletas">
     <div class="section-title"><h2>👥 Elenco</h2><span class="pill-count" id="countAtletas">0</span></div>
-    <div class="select-bar">
+    <div class="select-bar adm-only">
       <button class="select-all-btn" id="btnSelectAll" onclick="toggleSelectAll()">☐ Selecionar todos</button>
     </div>
-    <button class="bulk-delete" id="btnBulkDelete" style="display:none" onclick="excluirSelecionados()">Excluir atletas selecionados</button>
+    <button class="bulk-delete adm-only" id="btnBulkDelete" style="display:none" onclick="excluirSelecionados()">Excluir atletas selecionados</button>
     <input type="search" class="busca" id="buscaAtletas" placeholder="🔍 Buscar atleta" oninput="renderAtletas()" autocomplete="off">
     <div class="grid-athletes" id="listaAtletas"></div>
   </section>
@@ -513,20 +513,20 @@
     <div class="section-title"><h2>🎲 Sorteio equilibrado</h2></div>
 
     <div class="card">
-      <label class="field-label">Jogadores por time</label>
-      <div class="stepper">
+      <label class="field-label adm-only">Jogadores por time</label>
+      <div class="stepper adm-only">
         <button onclick="changePorTime(-1)">−</button>
         <div class="val" id="porTimeVal">4</div>
         <button onclick="changePorTime(1)">+</button>
       </div>
-      <label class="field-label">Número de times</label>
-      <div class="stepper">
+      <label class="field-label adm-only">Número de times</label>
+      <div class="stepper adm-only">
         <button onclick="changeNumTimes(-1)">−</button>
         <div class="val" id="numTimesVal">2</div>
         <button onclick="changeNumTimes(1)">+</button>
       </div>
-      <button class="btn btn-gold btn-block" style="margin-top:12px" onclick="sortear()">🎲 Sortear times</button>
-      <button class="btn btn-navy btn-block" id="btnResortear" style="margin-top:8px;display:none" onclick="sortear()">🔁 Resortear</button>
+      <button class="btn btn-gold btn-block adm-only" style="margin-top:12px" onclick="sortear()">🎲 Sortear times</button>
+      <button class="btn btn-navy btn-block adm-only" id="btnResortear" style="margin-top:8px;display:none" onclick="sortear()">🔁 Resortear</button>
       <button class="btn btn-ghost btn-block" style="margin-top:8px" id="btnShareTeams" onclick="compartilharTimes()">📤 Compartilhar no WhatsApp</button>
     </div>
     <input type="search" class="busca" id="buscaSorteio" placeholder="🔍 Buscar atleta nos times" oninput="renderUltimoSorteio()" autocomplete="off" style="display:none">
@@ -540,7 +540,7 @@
     <div class="card">
       <label class="field-label">Data do treino / jogo</label>
       <input type="date" id="dataPresenca" onchange="renderPresenca()">
-      <div class="select-bar" style="margin-top:10px">
+      <div class="select-bar adm-only" style="margin-top:10px">
         <button class="select-all-btn" id="btnSelectAllPresenca" onclick="toggleSelectAllPresenca()">☐ Marcar todos presentes</button>
       </div>
       <input type="search" class="busca" id="buscaPresenca" placeholder="🔍 Buscar atleta" oninput="renderPresenca()" autocomplete="off">
@@ -611,7 +611,7 @@
 
 <button class="fab" id="fabAdd" onclick="abrirModalAtleta()">+</button>
 
-<div class="selected-bar" id="selectedBar">
+<div class="selected-bar adm-only" id="selectedBar">
   <span id="selectedBarText">0 selecionados</span>
   <button class="btn btn-gold" style="padding:9px 14px;font-size:12.5px" onclick="irParaSorteioComSelecionados()">🎲 Sortear com estes</button>
 </div>
@@ -1404,12 +1404,12 @@ function renderAtletas(){
   const listaFiltrada = state.athletes.filter(a=>casaBusca(a,qBusca));
   if(!listaFiltrada.length){ wrap.innerHTML = SEM_RESULTADO; return; }
   wrap.innerHTML = listaFiltrada.map(a=>{
-    const on = state.selected.includes(a.id);
+    const on = !ehViewer() && state.selected.includes(a.id);
     return `
     <div class="ath-card ${on?'selected':''}">
-      <div class="check-circle ${on?'on':''}" onclick="toggleSelecionado('${a.id}')">${on?'✓':''}</div>
+      ${ehViewer()? '' : `<div class="check-circle ${on?'on':''}" onclick="toggleSelecionado('${a.id}')">${on?'✓':''}</div>`}
       ${a.foto? `<img class="avatar" src="${a.foto}" onerror="this.style.display='none'">` : `<div class="avatar">${a.nome.slice(0,2).toUpperCase()}</div>`}
-      <div class="ath-info" onclick="toggleSelecionado('${a.id}')">
+      <div class="ath-info" ${ehViewer()? '' : `onclick="toggleSelecionado('${a.id}')"`}>
         <div class="name">${a.nome}</div>
         <div class="ath-meta">
           <span class="pos-chip">${a.pos}</span>
@@ -1698,9 +1698,9 @@ function renderPresenca(){
     wrap.innerHTML = !lista.length ? SEM_RESULTADO : lista.map(a=>{
       const on = !!state.attendance[data][a.id];
       return `<div class="ath-card ${on?'selected':''}" style="margin-bottom:10px">
-        <div class="check-circle ${on?'on':''}" onclick="togglePresenca('${data}','${a.id}')">${on?'✓':''}</div>
+        <div class="check-circle ${on?'on':''}" ${modoEdicao? `onclick="togglePresenca('${data}','${a.id}')"` : 'style="cursor:default"'}>${on?'✓':''}</div>
         ${a.foto? `<img class="avatar" src="${a.foto}" onerror="this.style.display='none'">` : `<div class="avatar">${a.nome.slice(0,2).toUpperCase()}</div>`}
-        <div class="ath-info" onclick="togglePresenca('${data}','${a.id}')">
+        <div class="ath-info" ${modoEdicao? `onclick="togglePresenca('${data}','${a.id}')"` : ''}>
           <div class="name">${a.nome}</div>
           <div class="ath-meta"><span class="pos-chip">${a.pos}</span></div>
         </div>
@@ -2100,12 +2100,12 @@ function renderDetalheEvento(){
     const nome = avulso ? p.nome : ((state.athletes.find(a=>a.id===id)||{}).nome || '');
     const valorCobrar = valorParticipante(ev, p);
     return `<div class="part-row">
-      <div class="check-circle ${p.confirmado?'on':''}" onclick="toggleConfirmacaoEvento('${id}')">${p.confirmado?'✓':''}</div>
+      <div class="check-circle ${p.confirmado?'on':''}" ${modoEdicao? `onclick="toggleConfirmacaoEvento('${id}')"` : 'style="cursor:default"'}>${p.confirmado?'✓':''}</div>
       <span class="part-nome">${nome}${avulso? ' <span class="avulso-tag">avulso</span>':''}</span>
       <div class="part-conv">
-        <button onclick="mudarConvidados('${id}',-1)">−</button>
+        ${modoEdicao? `<button onclick="mudarConvidados('${id}',-1)">−</button>` : ''}
         <span>${p.convidados||0}👥</span>
-        <button onclick="mudarConvidados('${id}',1)">+</button>
+        ${modoEdicao? `<button onclick="mudarConvidados('${id}',1)">+</button>` : ''}
       </div>
       ${ehViewer()? '' : `<button class="mensal-toggle ${p.pago?'pago':''}" onclick="togglePagamentoEvento('${id}')">${p.pago? brl(valorCobrar)+' ✓' : 'Cobrar '+brl(valorCobrar)}</button>`}
       ${modoEdicao? `<button class="icon-btn" title="Editar valor cobrado" onclick="editarValorParticipante('${id}')">✏️</button>` : ''}
