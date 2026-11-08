@@ -715,12 +715,14 @@
 <!-- MODAL TRANSAÇÃO -->
 <div class="overlay" id="overlayTx">
   <div class="sheet">
-    <div class="sheet-head"><h3>Nova movimentação</h3><button class="sheet-close" onclick="fecharModalTx()">✕</button></div>
+    <div class="sheet-head"><h3 id="txTitulo">Nova movimentação</h3><button class="sheet-close" onclick="fecharModalTx()">✕</button></div>
     <div class="chip-row" id="txTipoChips"></div>
     <label class="field-label">Descrição</label>
     <input id="inTxDesc" placeholder="Ex: Mensalidade João">
     <label class="field-label">Valor (R$)</label>
     <input id="inTxValor" type="number" step="0.01" placeholder="70.00">
+    <label class="field-label" for="inTxData">Data</label>
+    <input id="inTxData" type="date">
     <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="salvarTx()">Salvar</button>
   </div>
 </div>
@@ -1737,9 +1739,15 @@ function renderTxTipoChips(){
     `<div class="chip-opt ${id===txTipoSel?'sel':''}" onclick="txTipoSel='${id}';renderTxTipoChips()">${l}</div>`
   ).join('');
 }
-function abrirModalTx(){
-  document.getElementById('inTxDesc').value=''; document.getElementById('inTxValor').value='';
-  txTipoSel='entrada'; renderTxTipoChips();
+let txEditId = null;
+function abrirModalTx(id){
+  const t = id ? state.finance.find(x=>x.id===id) : null;
+  txEditId = t ? t.id : null;
+  document.getElementById('txTitulo').textContent = t ? 'Editar movimentação' : 'Nova movimentação';
+  document.getElementById('inTxDesc').value = t ? t.desc : '';
+  document.getElementById('inTxValor').value = t ? t.valor : '';
+  document.getElementById('inTxData').value = (t && dataValida(t.data)) ? t.data : hojeISO();
+  txTipoSel = t ? t.tipo : 'entrada'; renderTxTipoChips();
   document.getElementById('overlayTx').classList.add('open');
 }
 function fecharModalTx(){ document.getElementById('overlayTx').classList.remove('open'); }
@@ -1747,9 +1755,23 @@ function salvarTx(){
   if(!podeEditar()) return;
   const desc = document.getElementById('inTxDesc').value.trim();
   const valor = parseFloat(document.getElementById('inTxValor').value);
+  const data = document.getElementById('inTxData').value;
   if(!desc || !valor){ alert('Preencha descrição e valor'); return; }
-  state.finance.push({id:uid(), tipo:txTipoSel, desc, valor, data:new Date().toISOString().slice(0,10)});
-  document.getElementById('mesCaixa').value = mesAtualStr();
+  if(!dataValida(data)){ alert('Escolha a data da movimentação'); return; }
+  if(txEditId){
+    const t = state.finance.find(x=>x.id===txEditId);
+    if(t){
+      t.tipo = txTipoSel; t.desc = desc; t.valor = valor; t.data = data;
+      // pagamento de mensalidade ligado a esta movimentação: a data de pagamento acompanha
+      Object.values(state.mensalidades).forEach(mes=>{
+        Object.keys(mes).forEach(athId=>{ if(mes[athId] && mes[athId].txId===t.id) mes[athId].dataPag = data; });
+      });
+    }
+  }else{
+    state.finance.push({id:uid(), tipo:txTipoSel, desc, valor, data});
+  }
+  txEditId = null;
+  document.getElementById('mesCaixa').value = data.slice(0,7);   // mostra o mês da movimentação
   persist(); fecharModalTx(); renderCaixa();
 }
 function excluirTx(id){
@@ -1783,14 +1805,14 @@ function renderCaixa(){
   renderCaixaMeses();
   const mesSel = document.getElementById('mesCaixa').value;
   const wrap = document.getElementById('listaTransacoes');
-  const list = state.finance.filter(t=>(t.data||'').slice(0,7)===mesSel).reverse();
+  const list = state.finance.filter(t=>(t.data||'').slice(0,7)===mesSel).reverse().sort((x,y)=>(y.data||'').localeCompare(x.data||''));   // mais recente em cima
   wrap.innerHTML = (modoEdicao? `<button class="btn btn-gold btn-block" onclick="abrirModalTx()" style="margin-bottom:12px">+ Nova movimentação</button>` : '') +
     (list.length? list.map(t=>`
       <div class="tx-row">
-        <div><div class="tx-desc">${t.desc}</div><div class="tx-date">${t.data}</div></div>
+        <div><div class="tx-desc">${t.desc}</div><div class="tx-date">${dataValida(t.data)? fmtData(t.data) : t.data}</div></div>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="tx-val ${t.tipo==='entrada'?'in':'out'}">${t.tipo==='entrada'?'+':'-'} ${brl(t.valor)}</span>
-          ${modoEdicao? `<button class="icon-btn" onclick="excluirTx('${t.id}')">🗑️</button>` : ''}
+          ${modoEdicao? `<button class="icon-btn" aria-label="Editar movimentação" onclick="abrirModalTx('${t.id}')">✏️</button><button class="icon-btn" aria-label="Excluir movimentação" onclick="excluirTx('${t.id}')">🗑️</button>` : ''}
         </div>
       </div>`).join('') : `<div class="empty"><span>💰</span>Nenhuma movimentação em ${mesLabel(mesSel)}.</div>`);
 }
